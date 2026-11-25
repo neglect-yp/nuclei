@@ -139,7 +139,7 @@ func NewConfig(options *types.Options, catalog catalog.Catalog, executerOpts *pr
 		Catalog:                  catalog,
 		ExecutorOptions:          executerOpts,
 		AITemplatePrompt:         options.AITemplatePrompt,
-		Logger:                   options.Logger,
+		Logger:                   options.GetLogger(),
 	}
 	loaderConfig.RemoteTemplateDomainList = append(loaderConfig.RemoteTemplateDomainList, TrustedTemplateDomains...)
 	return &loaderConfig
@@ -150,10 +150,9 @@ func New(cfg *Config) (*Store, error) {
 	// tagFilter only for IncludeConditions (advanced filtering).
 	// All other filtering (tags, authors, severities, IDs, protocols, paths) is
 	// handled by [index.Filter].
-	tagFilter, err := templates.NewTagFilter(&templates.TagFilterConfig{
-		Logger:            cfg.Logger,
+	tagFilter, err := templates.NewTagFilterWithLogger(&templates.TagFilterConfig{
 		IncludeConditions: cfg.IncludeConditions,
-	})
+	}, cfg.Logger)
 	if err != nil {
 		return nil, err
 	}

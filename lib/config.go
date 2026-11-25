@@ -557,13 +557,9 @@ func WithResumeFile(file string) NucleiSDKOptions {
 	}
 }
 
-// WithLogger selects the engine logger. It takes precedence over WithOptions
-// and can be overridden for one thread-safe execution.
+// WithLogger selects the engine logger and can be overridden for one thread-safe execution.
 func WithLogger(logger *gologger.Logger) NucleiSDKOptions {
 	return func(e *NucleiEngine) error {
-		if logger == nil {
-			return errors.New("WithLogger requires a non-nil logger")
-		}
 		e.loggerOverridden = true
 		e.Logger = logger
 		if e.opts != nil {
@@ -579,14 +575,8 @@ func WithLogger(logger *gologger.Logger) NucleiSDKOptions {
 // WithOptions sets all options at once
 func WithOptions(opts *pkgtypes.Options) NucleiSDKOptions {
 	return func(e *NucleiEngine) error {
-		if opts == nil {
-			return errors.New("WithOptions requires non-nil options")
-		}
-		if e.loggerOverridden || opts.Logger == nil {
-			opts.Logger = e.Logger
-		}
 		e.opts = opts
-		e.Logger = opts.Logger
+		e.loggerOverridden = false
 		return nil
 	}
 }

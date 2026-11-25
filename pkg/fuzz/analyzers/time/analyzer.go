@@ -104,6 +104,10 @@ func (a *Analyzer) parseAnalyzerParameters(params map[string]interface{}) (int, 
 
 // Analyze is the main function for the analyzer
 func (a *Analyzer) Analyze(options *analyzers.Options) (bool, string, error) {
+	return a.AnalyzeWithLogger(options, gologger.DefaultLogger)
+}
+
+func (a *Analyzer) AnalyzeWithLogger(options *analyzers.Options, logger *gologger.Logger) (bool, string, error) {
 	if options.ResponseTimeDelay < defaultSleepTimeDuration {
 		return false, "", nil
 	}
@@ -118,7 +122,7 @@ func (a *Analyzer) Analyze(options *analyzers.Options) (bool, string, error) {
 	reqSender := func(delay int) (float64, error) {
 		gr := options.FuzzGenerated
 		replaced := strings.ReplaceAll(gr.OriginalPayload, "[SLEEPTIME]", strconv.Itoa(delay))
-		replaced = a.ApplyInitialTransformationWithLogger(replaced, options.AnalyzerParameters, logging.OrDefault(options.Logger))
+		replaced = a.ApplyInitialTransformationWithLogger(replaced, options.AnalyzerParameters, logging.OrDefault(logger))
 
 		if err := gr.Component.SetValue(gr.Key, replaced); err != nil {
 			return 0, errors.Wrap(err, "could not set value in component")
@@ -138,7 +142,7 @@ func (a *Analyzer) Analyze(options *analyzers.Options) (bool, string, error) {
 			rebuilt.Header[k] = vs
 		}
 
-		logging.OrDefault(options.Logger).Verbose().Msgf("[%s] Sending request with %d delay for: %s", a.Name(), delay, rebuilt.String())
+		logging.OrDefault(logger).Verbose().Msgf("[%s] Sending request with %d delay for: %s", a.Name(), delay, rebuilt.String())
 
 		timeTaken, err := doHTTPRequestWithTimeTracing(rebuilt, options.HttpClient)
 		if err != nil {

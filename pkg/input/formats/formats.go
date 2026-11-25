@@ -6,7 +6,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
 	"github.com/projectdiscovery/retryablehttp-go"
 	fileutil "github.com/projectdiscovery/utils/file"
@@ -20,7 +19,6 @@ type ParseReqRespCallback func(rr *types.RequestResponse) bool
 // this can be variables that can be passed or
 // overrides or some other options
 type InputFormatOptions struct {
-	Logger *gologger.Logger
 	// Variables is list of variables that can be used
 	// while generating requests in given format
 	Variables map[string]interface{}

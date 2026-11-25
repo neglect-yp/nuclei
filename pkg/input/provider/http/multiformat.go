@@ -50,8 +50,12 @@ type HttpInputProvider struct {
 // The first preference is given to input file if provided
 // otherwise it will use the input string
 func NewHttpInputProvider(opts *HttpMultiFormatOptions) (*HttpInputProvider, error) {
+	return NewHttpInputProviderWithLogger(opts, gologger.DefaultLogger)
+}
+
+func NewHttpInputProviderWithLogger(opts *HttpMultiFormatOptions, logger *gologger.Logger) (*HttpInputProvider, error) {
 	var format formats.Format
-	for _, provider := range supportedProviders() {
+	for _, provider := range supportedProviders(logger) {
 		if provider.Name() == opts.InputMode {
 			format = provider
 		}
@@ -96,7 +100,7 @@ func NewHttpInputProvider(opts *HttpMultiFormatOptions) (*HttpInputProvider, err
 	if parseErr != nil {
 		return nil, errors.Wrap(parseErr, "could not parse input file")
 	}
-	return &HttpInputProvider{logger: logging.OrDefault(opts.Options.Logger), format: format, inputData: data, inputFile: opts.InputFile, count: count}, nil
+	return &HttpInputProvider{logger: logging.OrDefault(logger), format: format, inputData: data, inputFile: opts.InputFile, count: count}, nil
 }
 
 // Count returns the number of items for input provider
@@ -143,15 +147,15 @@ func (i *HttpInputProvider) InputType() string {
 func (i *HttpInputProvider) Close() {}
 
 // Supported Providers
-func supportedProviders() []formats.Format {
+func supportedProviders(logger *gologger.Logger) []formats.Format {
 	return []formats.Format{
 		burp.New(),
-		har.New(),
-		json.New(),
-		yaml.New(),
-		openapi.New(),
-		swagger.New(),
-		raw.New(),
+		har.NewWithLogger(logger),
+		json.NewWithLogger(logger),
+		yaml.NewWithLogger(logger),
+		openapi.NewWithLogger(logger),
+		swagger.NewWithLogger(logger),
+		raw.NewWithLogger(logger),
 	}
 }
 
@@ -159,7 +163,7 @@ func supportedProviders() []formats.Format {
 // manner
 func SupportedFormats() string {
 	var formats []string
-	for _, provider := range supportedProviders() {
+	for _, provider := range supportedProviders(nil) {
 		formats = append(formats, provider.Name())
 	}
 	return strings.Join(formats, ", ")

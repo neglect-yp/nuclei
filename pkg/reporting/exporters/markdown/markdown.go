@@ -22,13 +22,13 @@ const extension = ".md"
 const maxFilenameLength = 255
 
 type Exporter struct {
+	logger    *gologger.Logger
 	directory string
 	options   *Options
 }
 
 // Options contains the configuration options for GitHub issue tracker client
 type Options struct {
-	Logger *gologger.Logger `yaml:"-" json:"-"`
 	// Directory is the directory to export found results to
 	Directory string `yaml:"directory"`
 	OmitRaw   bool   `yaml:"omit-raw"`
@@ -37,6 +37,10 @@ type Options struct {
 
 // New creates a new markdown exporter integration client based on options.
 func New(options *Options) (*Exporter, error) {
+	return NewWithLogger(options, gologger.DefaultLogger)
+}
+
+func NewWithLogger(options *Options, logger *gologger.Logger) (*Exporter, error) {
 	directory := options.Directory
 	if options.Directory == "" {
 		dir, err := os.Getwd()
@@ -55,7 +59,7 @@ func New(options *Options) (*Exporter, error) {
 		return nil, err
 	}
 
-	return &Exporter{options: options, directory: directory}, nil
+	return &Exporter{logger: logging.OrDefault(logger), options: options, directory: directory}, nil
 }
 
 // Export exports a passed result event to markdown
@@ -94,7 +98,7 @@ func (exporter *Exporter) Export(event *output.ResultEvent) error {
 
 		// Create the subdirectory if it does not exist
 		if err = fileutil.CreateFolders(filepath.Join(exporter.directory, subdirectory)); err != nil {
-			logging.OrDefault(exporter.options.Logger).Warning().Msgf("Could not create subdirectory for markdown report: %s", err)
+			logging.OrDefault(exporter.logger).Warning().Msgf("Could not create subdirectory for markdown report: %s", err)
 		}
 	}
 

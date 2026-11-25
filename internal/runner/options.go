@@ -201,7 +201,7 @@ func ValidateOptions(options *types.Options) error {
 		return err
 	}
 	if options.Validate {
-		validateTemplatePaths(options.Logger, config.DefaultConfig.TemplatesDirectory, options.Templates, options.Workflows)
+		validateTemplatePaths(options.GetLogger(), config.DefaultConfig.TemplatesDirectory, options.Templates, options.Workflows)
 	}
 	if options.DAST {
 		if err := validateDASTOptions(options); err != nil {
@@ -214,7 +214,7 @@ func ValidateOptions(options *types.Options) error {
 		if generic.EqualsAny("", options.ClientCertFile, options.ClientKeyFile, options.ClientCAFile) {
 			return errors.New("if a client certification option is provided, then all three must be provided")
 		}
-		validateCertificatePaths(options.Logger, options.ClientCertFile, options.ClientKeyFile, options.ClientCAFile)
+		validateCertificatePaths(options.GetLogger(), options.ClientCertFile, options.ClientKeyFile, options.ClientCAFile)
 	}
 	// Verify AWS secrets are passed if a S3 template bucket is passed
 	if options.AwsBucketName != "" && options.UpdateTemplates && !options.AwsTemplateDisableDownload {

@@ -1,6 +1,7 @@
 package protocolinit
 
 import (
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/js/compiler"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/dns/dnsclientpool"
@@ -35,7 +36,11 @@ func Init(options *types.Options) error {
 }
 
 func Close(executionId string) {
+	CloseWithLogger(executionId, gologger.DefaultLogger)
+}
+
+func CloseWithLogger(executionId string, logger *gologger.Logger) {
 	dnsclientpool.Close(executionId)
 	rdapclientpool.Close(executionId)
-	protocolstate.Close(executionId)
+	protocolstate.CloseWithLogger(executionId, logger)
 }

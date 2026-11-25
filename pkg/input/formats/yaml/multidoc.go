@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
@@ -15,12 +16,17 @@ import (
 // YamlMultiDocFormat is a Yaml format parser for nuclei
 // input HTTP requests with multiple documents separated by ---
 type YamlMultiDocFormat struct {
-	opts formats.InputFormatOptions
+	logger *gologger.Logger
+	opts   formats.InputFormatOptions
 }
 
 // New creates a new JSON format parser
 func New() *YamlMultiDocFormat {
 	return &YamlMultiDocFormat{}
+}
+
+func NewWithLogger(logger *gologger.Logger) *YamlMultiDocFormat {
+	return &YamlMultiDocFormat{logger: logger}
 }
 
 var _ formats.Format = &YamlMultiDocFormat{}
@@ -88,7 +94,7 @@ func (j *YamlMultiDocFormat) Parse(input io.Reader, resultsCb formats.ParseReqRe
 
 		rawRequest, err := types.ParseRawRequestWithURL(raw, request.URL)
 		if err != nil {
-			logging.OrDefault(j.opts.Logger).Warning().Msgf("multidoc-yaml: Could not parse raw request %s: %s", request.URL, err)
+			logging.OrDefault(j.logger).Warning().Msgf("multidoc-yaml: Could not parse raw request %s: %s", request.URL, err)
 			continue
 		}
 		if resp := buildProxifyResponse(request.Response); resp != nil {

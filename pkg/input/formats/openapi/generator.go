@@ -16,6 +16,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
 	"github.com/projectdiscovery/fasttemplate"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
@@ -34,6 +35,10 @@ const (
 
 // GenerateRequestsFromSchema generates http requests from an OpenAPI 3.0 document object
 func GenerateRequestsFromSchema(schema *openapi3.T, opts formats.InputFormatOptions, callback formats.ParseReqRespCallback) error {
+	return GenerateRequestsFromSchemaWithLogger(schema, opts, callback, gologger.DefaultLogger)
+}
+
+func GenerateRequestsFromSchemaWithLogger(schema *openapi3.T, opts formats.InputFormatOptions, callback formats.ParseReqRespCallback, logger *gologger.Logger) error {
 	// Null entries in `servers:` are skipped below, so a list of only null
 	// entries has no usable server, the same as an empty list.
 	if !slices.ContainsFunc(schema.Servers, func(s *openapi3.Server) bool { return s != nil }) {
@@ -79,6 +84,7 @@ func GenerateRequestsFromSchema(schema *openapi3.T, opts formats.InputFormatOpti
 					return globalSecurityErr
 				}
 				if err := generateRequestsFromOp(&generateReqOptions{
+					logger:                    logger,
 					requiredOnly:              opts.RequiredOnly,
 					method:                    method,
 					pathURL:                   baseURL,
@@ -91,15 +97,15 @@ func GenerateRequestsFromSchema(schema *openapi3.T, opts formats.InputFormatOpti
 					callback:                  callback,
 					missingParamValueCallback: missingParamValueCallback,
 				}); err != nil {
-					logging.OrDefault(opts.Logger).Warning().Msgf("Could not generate requests from op: %s\n", err)
+					logging.OrDefault(logger).Warning().Msgf("Could not generate requests from op: %s\n", err)
 				}
 			}
 		}
 	}
 
 	if len(missingVarMap) > 0 && !opts.SkipFormatValidation {
-		logging.OrDefault(opts.Logger).Error().Msgf("openapi: Found %d missing parameters, use -skip-format-validation flag to skip requests or update missing parameters generated in %s file,you can also specify these vars using -var flag in (key=value) format\n", len(missingVarMap), formats.DefaultVarDumpFileName)
-		logging.OrDefault(opts.Logger).Verbose().Msgf("openapi: missing params: %+v", mapsutil.GetSortedKeys(missingVarMap))
+		logging.OrDefault(logger).Error().Msgf("openapi: Found %d missing parameters, use -skip-format-validation flag to skip requests or update missing parameters generated in %s file,you can also specify these vars using -var flag in (key=value) format\n", len(missingVarMap), formats.DefaultVarDumpFileName)
+		logging.OrDefault(logger).Verbose().Msgf("openapi: missing params: %+v", mapsutil.GetSortedKeys(missingVarMap))
 		if config.CurrentAppMode == config.AppModeCLI {
 			// generate var dump file
 			vars := &formats.OpenAPIParamsCfgFile{}
@@ -108,7 +114,7 @@ func GenerateRequestsFromSchema(schema *openapi3.T, opts formats.InputFormatOpti
 			}
 			vars.OptionalVars = mapsutil.GetSortedKeys(optionalVarMap)
 			if err := formats.WriteOpenAPIVarDumpFile(vars); err != nil {
-				logging.OrDefault(opts.Logger).Error().Msgf("openapi: could not write params file: %s\n", err)
+				logging.OrDefault(logger).Error().Msgf("openapi: could not write params file: %s\n", err)
 			}
 			// exit with status code 1
 			os.Exit(1)
@@ -119,6 +125,7 @@ func GenerateRequestsFromSchema(schema *openapi3.T, opts formats.InputFormatOpti
 }
 
 type generateReqOptions struct {
+	logger *gologger.Logger
 	// requiredOnly specifies whether to generate only required fields
 	requiredOnly bool
 	// method is the http method to use
@@ -226,7 +233,7 @@ func generateRequestsFromOp(opts *generateReqOptions) error {
 					// if it is in path then remove it from path
 					opts.requestPath = strings.ReplaceAll(opts.requestPath, fmt.Sprintf("{%s}", value.Name), "")
 					if !opts.opts.RequiredOnly {
-						logging.OrDefault(opts.opts.Logger).Verbose().Msgf("openapi: skipping optional param (%s) in (%v) in request [%s] %s due to missing value (%v)\n", value.Name, value.In, opts.method, opts.requestPath, value.Name)
+						logging.OrDefault(opts.logger).Verbose().Msgf("openapi: skipping optional param (%s) in (%v) in request [%s] %s due to missing value (%v)\n", value.Name, value.In, opts.method, opts.requestPath, value.Name)
 					}
 					continue
 				}
@@ -236,13 +243,13 @@ func generateRequestsFromOp(opts *generateReqOptions) error {
 				// when failed to generate example
 				// skip request if param in path else skip this param only
 				if value.Required {
-					logging.OrDefault(opts.opts.Logger).Verbose().Msgf("openapi: skipping request [%s] %s due to missing value (%v)\n", opts.method, opts.requestPath, value.Name)
+					logging.OrDefault(opts.logger).Verbose().Msgf("openapi: skipping request [%s] %s due to missing value (%v)\n", opts.method, opts.requestPath, value.Name)
 					return nil
 				} else {
 					// if it is in path then remove it from path
 					opts.requestPath = strings.ReplaceAll(opts.requestPath, fmt.Sprintf("{%s}", value.Name), "")
 					if !opts.opts.RequiredOnly {
-						logging.OrDefault(opts.opts.Logger).Verbose().Msgf("openapi: skipping optional param (%s) in (%v) in request [%s] %s due to missing value (%v)\n", value.Name, value.In, opts.method, opts.requestPath, value.Name)
+						logging.OrDefault(opts.logger).Verbose().Msgf("openapi: skipping optional param (%s) in (%v) in request [%s] %s due to missing value (%v)\n", value.Name, value.In, opts.method, opts.requestPath, value.Name)
 					}
 					continue
 				}
@@ -323,7 +330,7 @@ func generateRequestsFromOp(opts *generateReqOptions) error {
 					cloned.ContentLength = int64(len(marshalled))
 					cloned.Header.Set("Content-Type", "application/xml")
 				} else {
-					logging.OrDefault(opts.opts.Logger).Warning().Msgf("openapi: could not encode xml")
+					logging.OrDefault(opts.logger).Warning().Msgf("openapi: could not encode xml")
 					continue
 				}
 			case "application/x-www-form-urlencoded":
@@ -381,7 +388,7 @@ func generateRequestsFromOp(opts *generateReqOptions) error {
 					cloned.Header.Set("Content-Type", "text/plain")
 				}
 			default:
-				logging.OrDefault(opts.opts.Logger).Verbose().Msgf("openapi: no correct content type found for body: %s\n", content)
+				logging.OrDefault(opts.logger).Verbose().Msgf("openapi: no correct content type found for body: %s\n", content)
 				// LOG:	return errors.New("no correct content type found for body")
 				continue
 			}

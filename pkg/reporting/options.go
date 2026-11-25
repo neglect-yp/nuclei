@@ -1,7 +1,6 @@
 package reporting
 
 import (
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/reporting/exporters/csv"
 	"github.com/projectdiscovery/nuclei/v3/pkg/reporting/exporters/es"
@@ -23,7 +22,6 @@ import (
 
 // Options is a configuration file for nuclei reporting module
 type Options struct {
-	Logger *gologger.Logger `yaml:"-" json:"-"`
 	// AllowList contains a list of allowed events for reporting module
 	AllowList *filters.Filter `yaml:"allow-list"`
 	// DenyList contains a list of denied events for reporting module

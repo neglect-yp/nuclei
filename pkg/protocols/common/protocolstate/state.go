@@ -225,7 +225,6 @@ func initDialers(options *types.Options) error {
 	httpClientPool := NewHTTPPool(90*time.Second, 30*time.Second)
 
 	dialersInstance := &Dialers{
-		logger:                     options.GetLogger(),
 		Fastdialer:                 dialer,
 		NetworkPolicy:              networkPolicy,
 		HTTPClientPool:             httpClientPool,
@@ -320,6 +319,10 @@ func interfaceAddresses(interfaceName string) ([]net.Addr, error) {
 
 // Close closes the global shared fastdialer
 func Close(executionId string) {
+	CloseWithLogger(executionId, gologger.DefaultLogger)
+}
+
+func CloseWithLogger(executionId string, logger *gologger.Logger) {
 	dialersInstance, ok := dialers.Get(executionId)
 	if !ok {
 		return
@@ -343,10 +346,6 @@ func Close(executionId string) {
 	dialers.Delete(executionId)
 
 	if dialers.IsEmpty() {
-		var logger *gologger.Logger
-		if dialersInstance != nil {
-			logger = dialersInstance.logger
-		}
 		httpcache.CloseWithLogger(logging.OrDefault(logger))
 		StopActiveMemGuardian()
 	}

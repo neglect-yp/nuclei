@@ -153,18 +153,17 @@ func NewInputProvider(opts InputOptions) (InputProvider, error) {
 		}
 	}
 
-	return http.NewHttpInputProvider(&http.HttpMultiFormatOptions{
+	return http.NewHttpInputProviderWithLogger(&http.HttpMultiFormatOptions{
 		InputFile: opts.Options.TargetsFilePath,
 		InputMode: opts.Options.InputFileMode,
 		Options: formats.InputFormatOptions{
-			Logger:               opts.Options.GetLogger(),
 			Variables:            generators.MergeMaps(extraVars, opts.Options.Vars.AsMap()),
 			SkipFormatValidation: opts.Options.SkipFormatValidation,
 			RequiredOnly:         opts.Options.FormatUseRequiredOnly,
 			VarsTextTemplating:   opts.Options.VarsTextTemplating,
 			VarsFilePaths:        opts.Options.VarsFilePaths,
 		},
-	})
+	}, opts.Options.GetLogger())
 }
 
 // SupportedInputFormats returns all supported input formats of nuclei

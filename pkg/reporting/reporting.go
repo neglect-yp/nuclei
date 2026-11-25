@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model/types/stringslice"
@@ -60,6 +61,7 @@ type Exporter interface {
 
 // ReportingClient is a client for nuclei issue tracking module
 type ReportingClient struct {
+	logger    *gologger.Logger
 	trackers  []Tracker
 	exporters []Exporter
 	options   *Options
@@ -75,7 +77,11 @@ type IssueTrackerStats struct {
 
 // New creates a new nuclei issue tracker reporting client
 func New(options *Options, db string, doNotDedupe bool) (Client, error) {
-	client := &ReportingClient{options: options}
+	return NewWithLogger(options, db, doNotDedupe, gologger.DefaultLogger)
+}
+
+func NewWithLogger(options *Options, db string, doNotDedupe bool, logger *gologger.Logger) (Client, error) {
+	client := &ReportingClient{options: options, logger: logging.OrDefault(logger)}
 
 	if options.GitHub != nil {
 		options.GitHub.HttpClient = options.HttpClient
@@ -105,11 +111,9 @@ func New(options *Options, db string, doNotDedupe bool) (Client, error) {
 		client.trackers = append(client.trackers, tracker)
 	}
 	if options.Jira != nil {
-		child := *options.Jira
-		child.Logger = options.Logger
-		child.HttpClient = options.HttpClient
-		child.OmitRaw = options.OmitRaw
-		tracker, err := jira.New(&child)
+		options.Jira.HttpClient = options.HttpClient
+		options.Jira.OmitRaw = options.OmitRaw
+		tracker, err := jira.NewWithLogger(options.Jira, client.logger)
 		if err != nil {
 			return nil, errkit.Wrapf(err, "could not create reporting client: %v", ErrReportingClientCreation)
 		}
@@ -125,9 +129,7 @@ func New(options *Options, db string, doNotDedupe bool) (Client, error) {
 		client.trackers = append(client.trackers, tracker)
 	}
 	if options.MarkdownExporter != nil {
-		child := *options.MarkdownExporter
-		child.Logger = options.Logger
-		exporter, err := markdown.New(&child)
+		exporter, err := markdown.NewWithLogger(options.MarkdownExporter, client.logger)
 		if err != nil {
 			return nil, errkit.Wrapf(err, "could not create export client: %v", ErrExportClientCreation)
 		}
@@ -187,9 +189,7 @@ func New(options *Options, db string, doNotDedupe bool) (Client, error) {
 		client.exporters = append(client.exporters, exporter)
 	}
 	if options.MongoDBExporter != nil {
-		child := *options.MongoDBExporter
-		child.Logger = options.Logger
-		exporter, err := mongo.New(&child)
+		exporter, err := mongo.NewWithLogger(options.MongoDBExporter, client.logger)
 		if err != nil {
 			return nil, errkit.Wrapf(err, "could not create export client: %v", ErrExportClientCreation)
 		}
@@ -287,7 +287,7 @@ func (c *ReportingClient) Close() {
 				if failed > 0 {
 					fmt.Fprintf(&msgBuilder, ", %d failed", failed)
 				}
-				logging.OrDefault(c.options.Logger).Info().Msgf("%v", msgBuilder.String())
+				logging.OrDefault(c.logger).Info().Msgf("%v", msgBuilder.String())
 			}
 		}
 	}

@@ -30,8 +30,7 @@ type workflowLoader struct {
 
 // NewLoader returns a new workflow loader structure
 func NewLoader(options *protocols.ExecutorOptions) (model.WorkflowLoader, error) {
-	tagFilter, err := templates.NewTagFilter(&templates.TagFilterConfig{
-		Logger:            options.GetLogger(),
+	tagFilter, err := templates.NewTagFilterWithLogger(&templates.TagFilterConfig{
 		Authors:           options.Options.Authors,
 		Tags:              options.Options.Tags,
 		ExcludeTags:       options.Options.ExcludeTags,
@@ -43,19 +42,18 @@ func NewLoader(options *protocols.ExecutorOptions) (model.WorkflowLoader, error)
 		Protocols:         options.Options.Protocols,
 		ExcludeProtocols:  options.Options.ExcludeProtocols,
 		IncludeConditions: options.Options.IncludeConditions,
-	})
+	}, options.GetLogger())
 	if err != nil {
 		return nil, err
 	}
 	// IncludeTags is not an inclusion filter: it lifts the exclusion of the
 	// same tags
-	exclusions, err := templates.NewTagFilter(&templates.TagFilterConfig{
-		Logger:           options.GetLogger(),
+	exclusions, err := templates.NewTagFilterWithLogger(&templates.TagFilterConfig{
 		ExcludeTags:      options.Options.ExcludeTags,
 		IncludeTags:      options.Options.IncludeTags,
 		ExcludeIds:       options.Options.ExcludeIds,
 		ExcludeProtocols: options.Options.ExcludeProtocols,
-	})
+	}, options.GetLogger())
 	if err != nil {
 		return nil, err
 	}

@@ -13,7 +13,6 @@ import (
 	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
 	nuclei "github.com/projectdiscovery/nuclei/v3/lib"
-	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	inputhttp "github.com/projectdiscovery/nuclei/v3/pkg/input/provider/http"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
@@ -52,8 +51,8 @@ func TestWithLoggerReceivesProtocolLogs(t *testing.T) {
 	var logs sdkLogOutput
 	engine, err := nuclei.NewNucleiEngineCtx(t.Context(),
 		nuclei.DisableUpdateCheck(),
-		nuclei.WithLogger(logs.logger()),
 		nuclei.WithOptions(types.DefaultOptions()),
+		nuclei.WithLogger(logs.logger()),
 		nuclei.WithTemplatesOrWorkflows(nuclei.TemplateSources{Templates: []string{writeSDKMatchTemplate(t)}}),
 	)
 	require.NoError(t, err)
@@ -61,6 +60,18 @@ func TestWithLoggerReceivesProtocolLogs(t *testing.T) {
 	engine.LoadTargets([]string{server.URL}, false)
 	require.NoError(t, engine.ExecuteCallbackWithCtx(t.Context()))
 	require.Contains(t, logs.String(), "[sdk-callback-match] Sent HTTP request to "+server.URL)
+}
+
+func TestWithOptionsAfterWithLoggerKeepsOptionsLogger(t *testing.T) {
+	var first, second sdkLogOutput
+	opts := types.DefaultOptions()
+	logger := second.logger()
+	opts.Logger = logger
+	engine, err := nuclei.NewNucleiEngineCtx(t.Context(), nuclei.DisableUpdateCheck(), nuclei.WithLogger(first.logger()), nuclei.WithOptions(opts))
+	require.NoError(t, err)
+	t.Cleanup(engine.Close)
+	require.Same(t, logger, engine.Logger)
+	require.Same(t, logger, opts.Logger)
 }
 
 func TestWithLoggerReceivesOptionWarnings(t *testing.T) {
@@ -106,9 +117,9 @@ func TestInputFormatKeepsItsLogger(t *testing.T) {
 	newInput := func(path string, logs *sdkLogOutput) *inputhttp.HttpInputProvider {
 		t.Helper()
 		require.NoError(t, os.WriteFile(path, []byte("GET / HTTP/1.1\r\n\r\n"), 0o600))
-		input, err := inputhttp.NewHttpInputProvider(&inputhttp.HttpMultiFormatOptions{
-			InputMode: "http", InputFile: path, Options: formats.InputFormatOptions{Logger: logs.logger()},
-		})
+		input, err := inputhttp.NewHttpInputProviderWithLogger(&inputhttp.HttpMultiFormatOptions{
+			InputMode: "http", InputFile: path,
+		}, logs.logger())
 		require.NoError(t, err)
 		return input
 	}

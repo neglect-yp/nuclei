@@ -1866,13 +1866,12 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 			if analyzerClient == nil {
 				request.GetLogger().Warning().Msgf("Could not get http client for analyzer %s on %s, skipping analysis\n", request.Analyzer.Name, hostname)
 			} else {
-				analysisMatched, analysisDetails, err := analyzer.Analyze(&analyzers.Options{
-					Logger:             request.GetLogger(),
+				analysisMatched, analysisDetails, err := analyzers.AnalyzeWithLogger(analyzer, &analyzers.Options{
 					FuzzGenerated:      generatedRequest.fuzzGeneratedRequest,
 					HttpClient:         analyzerClient,
 					ResponseTimeDelay:  duration,
 					AnalyzerParameters: request.Analyzer.Parameters,
-				})
+				}, request.GetLogger())
 				if err != nil {
 					request.GetLogger().Warning().Msgf("Could not analyze response: %v\n", err)
 				}
@@ -2113,7 +2112,6 @@ func (request *Request) handleSignature(generatedRequest *generatedRequest) erro
 		var awsSigner signer.Signer
 		allvars := generators.MergeMaps(request.options.Options.Vars.AsMap(), generatedRequest.dynamicValues)
 		awsopts := signer.AWSOptions{
-			Logger:         request.GetLogger(),
 			AwsID:          types.ToString(allvars["aws-id"]),
 			AwsSecretToken: types.ToString(allvars["aws-secret"]),
 		}
@@ -2122,7 +2120,7 @@ func (request *Request) handleSignature(generatedRequest *generatedRequest) erro
 			return err
 		}
 		ctx := signer.GetCtxWithArgs(allvars, signer.AwsDefaultVars)
-		err = awsSigner.SignHTTP(ctx, generatedRequest.request.Request)
+		err = awsSigner.SignHTTP(logging.WithLogger(ctx, request.GetLogger()), generatedRequest.request.Request)
 		if err != nil {
 			return err
 		}

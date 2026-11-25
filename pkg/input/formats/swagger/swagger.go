@@ -11,6 +11,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi2conv"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats/openapi"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils/json"
@@ -19,12 +20,17 @@ import (
 
 // SwaggerFormat is a Swagger Schema File parser
 type SwaggerFormat struct {
-	opts formats.InputFormatOptions
+	logger *gologger.Logger
+	opts   formats.InputFormatOptions
 }
 
 // New creates a new Swagger format parser
 func New() *SwaggerFormat {
 	return &SwaggerFormat{}
+}
+
+func NewWithLogger(logger *gologger.Logger) *SwaggerFormat {
+	return &SwaggerFormat{logger: logger}
 }
 
 var _ formats.Format = &SwaggerFormat{}
@@ -67,7 +73,7 @@ func (j *SwaggerFormat) Parse(input io.Reader, resultsCb formats.ParseReqRespCal
 	if err != nil {
 		return errors.Wrap(err, "could not resolve openapi schema references")
 	}
-	return openapi.GenerateRequestsFromSchema(schema, j.opts, resultsCb)
+	return openapi.GenerateRequestsFromSchemaWithLogger(schema, j.opts, resultsCb, j.logger)
 }
 
 // dropNullEntries removes null entries from the maps and lists of a decoded

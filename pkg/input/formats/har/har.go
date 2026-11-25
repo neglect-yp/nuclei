@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
@@ -17,12 +18,17 @@ import (
 // HARFormat is an HTTP Archive (HAR 1.2) parser, the format browsers and
 // proxies export captured traffic in.
 type HARFormat struct {
-	opts formats.InputFormatOptions
+	logger *gologger.Logger
+	opts   formats.InputFormatOptions
 }
 
 // New creates a new HAR parser
 func New() *HARFormat {
 	return &HARFormat{}
+}
+
+func NewWithLogger(logger *gologger.Logger) *HARFormat {
+	return &HARFormat{logger: logger}
 }
 
 var _ formats.Format = &HARFormat{}
@@ -83,7 +89,7 @@ func (h *HARFormat) Parse(input io.Reader, resultsCb formats.ParseReqRespCallbac
 		}
 		rawRequest, err := types.ParseRawRequestWithURL(rawRequestOf(e), e.Request.URL)
 		if err != nil {
-			logging.OrDefault(h.opts.Logger).Warning().Msgf("har: Could not parse request %s: %s\n", e.Request.URL, err)
+			logging.OrDefault(h.logger).Warning().Msgf("har: Could not parse request %s: %s\n", e.Request.URL, err)
 			continue
 		}
 		// Status 0 is a request that was blocked or never answered.

@@ -5,17 +5,23 @@ import (
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 )
 
 // OpenAPIFormat is a OpenAPI Schema File parser
 type OpenAPIFormat struct {
-	opts formats.InputFormatOptions
+	logger *gologger.Logger
+	opts   formats.InputFormatOptions
 }
 
 // New creates a new OpenAPI format parser
 func New() *OpenAPIFormat {
 	return &OpenAPIFormat{}
+}
+
+func NewWithLogger(logger *gologger.Logger) *OpenAPIFormat {
+	return &OpenAPIFormat{logger: logger}
 }
 
 var _ formats.Format = &OpenAPIFormat{}
@@ -37,5 +43,5 @@ func (j *OpenAPIFormat) Parse(input io.Reader, resultsCb formats.ParseReqRespCal
 	if err != nil {
 		return errors.Wrap(err, "could not decode openapi 3.0 schema")
 	}
-	return GenerateRequestsFromSchema(schema, j.opts, resultsCb)
+	return GenerateRequestsFromSchemaWithLogger(schema, j.opts, resultsCb, j.logger)
 }

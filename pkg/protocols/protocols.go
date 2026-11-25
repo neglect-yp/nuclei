@@ -202,7 +202,6 @@ func (e *ExecutorOptions) RegisterInteractshRequest(urls []string, data *interac
 	if e == nil || e.Interactsh == nil || data == nil {
 		return
 	}
-	data.Logger = e.GetLogger()
 	data.Output = e.Output
 	data.Progress = e.Progress
 	data.IssuesClient = e.IssuesClient

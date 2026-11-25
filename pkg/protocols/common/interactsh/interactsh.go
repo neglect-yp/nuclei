@@ -74,6 +74,7 @@ var interactshSNIAnnotationRegex = regexp.MustCompile(`(?m)^[\t ]*@tls-sni:[\t ]
 // engine execution. A shared Client can serve many concurrent executions, but
 // each execution still needs its own callback window and deterministic cleanup.
 type RequestScope struct {
+	logger    *gologger.Logger
 	client    *Client
 	once      sync.Once
 	mu        sync.Mutex
@@ -86,6 +87,15 @@ type RequestScope struct {
 // Close after the execution work pool has drained.
 func (c *Client) NewRequestScope() *RequestScope {
 	return &RequestScope{client: c, ids: make(map[string]struct{})}
+}
+
+// NewRequestScopeWithLogger binds delayed callback diagnostics to their execution.
+func NewRequestScopeWithLogger(client IClient, logger *gologger.Logger) *RequestScope {
+	scope := client.NewRequestScope()
+	if scope != nil {
+		scope.logger = logger
+	}
+	return scope
 }
 
 func (s *RequestScope) track(id string) bool {
@@ -201,8 +211,8 @@ func (c *Client) initializeCaches() {
 }
 
 func (c *Client) logger(data *RequestData) *gologger.Logger {
-	if data != nil && data.Logger != nil {
-		return data.Logger
+	if data != nil && data.Scope != nil && data.Scope.logger != nil {
+		return data.Scope.logger
 	}
 	return logging.OrDefault(c.options.Logger)
 }
@@ -511,7 +521,6 @@ type MakeResultEventFunc func(wrapped *output.InternalWrappedEvent) []*output.Re
 
 // RequestData contains data for a request event
 type RequestData struct {
-	Logger         *gologger.Logger
 	MakeResultFunc MakeResultEventFunc
 	Event          *output.InternalWrappedEvent
 	Operators      *operators.Operators

@@ -13,6 +13,7 @@ import (
 	"github.com/projectdiscovery/nuclei/v3/pkg/loader/workflow"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
+	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/interactsh"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils"
 	"github.com/projectdiscovery/utils/errkit"
@@ -51,7 +52,7 @@ func createEphemeralObjects(ctx context.Context, base *NucleiEngine, opts *types
 		DoNotCache:        opts.DoNotCacheTemplates,
 	}
 	if base.interactshClient != nil {
-		u.executerOpts.InteractshScope = base.interactshClient.NewRequestScope()
+		u.executerOpts.InteractshScope = interactsh.NewRequestScopeWithLogger(base.interactshClient, opts.GetLogger())
 	}
 	if opts.ShouldUseHostError() && base.hostErrCache != nil {
 		u.executerOpts.HostErrorsCache = base.hostErrCache

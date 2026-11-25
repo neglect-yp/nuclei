@@ -350,7 +350,6 @@ func isConditionMatch(tagFilter *TagFilter, template *Template) bool {
 }
 
 type TagFilterConfig struct {
-	Logger            *gologger.Logger
 	Tags              []string
 	ExcludeTags       []string
 	Authors           []string
@@ -368,8 +367,12 @@ type TagFilterConfig struct {
 //
 // It takes into account Tags, Severities, ExcludeSeverities, Authors, IncludeTags, ExcludeTags, Conditions.
 func NewTagFilter(config *TagFilterConfig) (*TagFilter, error) {
+	return NewTagFilterWithLogger(config, gologger.DefaultLogger)
+}
+
+func NewTagFilterWithLogger(config *TagFilterConfig, logger *gologger.Logger) (*TagFilter, error) {
 	filter := &TagFilter{
-		logger:            logging.OrDefault(config.Logger),
+		logger:            logging.OrDefault(logger),
 		allowedTags:       splitCommaTrimSet(config.Tags),
 		authors:           splitCommaTrimSet(config.Authors),
 		severities:        toMap(config.Severities),
@@ -385,7 +388,7 @@ func NewTagFilter(config *TagFilterConfig) (*TagFilter, error) {
 		includeConditions: make(map[string]*govaluate.EvaluableExpression),
 	}
 	for _, includeCondition := range config.IncludeConditions {
-		compiled, err := govaluate.NewEvaluableExpressionWithFunctions(includeCondition, dsl.HelpersWithLogger(config.Logger))
+		compiled, err := govaluate.NewEvaluableExpressionWithFunctions(includeCondition, dsl.HelpersWithLogger(logger))
 		if err != nil {
 			return nil, err
 		}

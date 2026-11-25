@@ -4,14 +4,12 @@ import (
 	"sync"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/networkpolicy"
 	"github.com/projectdiscovery/rawhttp"
 	"github.com/projectdiscovery/retryablehttp-go"
 )
 
 type Dialers struct {
-	logger                     *gologger.Logger
 	Fastdialer                 *fastdialer.Dialer
 	RawHTTPClient              *rawhttp.Client
 	DefaultHTTPClient          *retryablehttp.Client

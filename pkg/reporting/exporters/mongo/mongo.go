@@ -17,6 +17,7 @@ import (
 )
 
 type Exporter struct {
+	logger     *gologger.Logger
 	options    *Options
 	mutex      *sync.Mutex
 	rows       []output.ResultEvent
@@ -26,7 +27,6 @@ type Exporter struct {
 
 // Options contains the configuration options for MongoDB exporter client
 type Options struct {
-	Logger *gologger.Logger `yaml:"-" json:"-"`
 	// ConnectionString is the connection string to the MongoDB database
 	ConnectionString string `yaml:"connection-string"`
 	// CollectionName is the name of the MongoDB collection in which to store the results
@@ -40,7 +40,12 @@ type Options struct {
 
 // New creates a new MongoDB exporter integration client based on options.
 func New(options *Options) (*Exporter, error) {
+	return NewWithLogger(options, gologger.DefaultLogger)
+}
+
+func NewWithLogger(options *Options, logger *gologger.Logger) (*Exporter, error) {
 	exporter := &Exporter{
+		logger:  logging.OrDefault(logger),
 		mutex:   &sync.Mutex{},
 		options: options,
 		rows:    []output.ResultEvent{},
@@ -51,7 +56,7 @@ func New(options *Options) (*Exporter, error) {
 	envConnectionString := os.Getenv("MONGO_CONNECTION_STRING")
 	if envConnectionString != "" {
 		options.ConnectionString = envConnectionString
-		logging.OrDefault(options.Logger).Info().Msgf("Using connection string from environment variable MONGO_CONNECTION_STRING")
+		exporter.logger.Info().Msgf("Using connection string from environment variable MONGO_CONNECTION_STRING")
 	}
 
 	// Create the connection to the database
@@ -60,21 +65,21 @@ func New(options *Options) (*Exporter, error) {
 	// Create a new client and connect to the MongoDB server
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 	if err != nil {
-		logging.OrDefault(options.Logger).Error().Msgf("Error creating MongoDB client: %s", err)
+		exporter.logger.Error().Msgf("Error creating MongoDB client: %s", err)
 		return nil, err
 	}
 
 	// Ensure the connection is valid
 	err = client.Ping(context.Background(), nil)
 	if err != nil {
-		logging.OrDefault(options.Logger).Error().Msgf("Error connecting to MongoDB: %s", err)
+		exporter.logger.Error().Msgf("Error connecting to MongoDB: %s", err)
 		return nil, err
 	}
 
 	// Get the database from the connection string to set the database and collection
 	parsed, err := url.Parse(options.ConnectionString)
 	if err != nil {
-		logging.OrDefault(options.Logger).Error().Msgf("Error parsing connection string: %s", options.ConnectionString)
+		exporter.logger.Error().Msgf("Error parsing connection string: %s", options.ConnectionString)
 		return nil, err
 	}
 
@@ -125,7 +130,7 @@ func (exporter *Exporter) WriteRows() error {
 		// Write the data to the database
 		_, err := exporter.collection.InsertOne(context.TODO(), data)
 		if err != nil {
-			logging.OrDefault(exporter.options.Logger).Fatal().Msgf("Error inserting record into MongoDB collection: %s", err)
+			logging.OrDefault(exporter.logger).Fatal().Msgf("Error inserting record into MongoDB collection: %s", err)
 			return err
 		}
 
@@ -150,7 +155,7 @@ func (exporter *Exporter) Close() error {
 	// Close the database connection
 	err = exporter.connection.Disconnect(context.TODO())
 	if err != nil {
-		logging.OrDefault(exporter.options.Logger).Error().Msgf("Error disconnecting from MongoDB: %s", err)
+		logging.OrDefault(exporter.logger).Error().Msgf("Error disconnecting from MongoDB: %s", err)
 		return err
 	}
 

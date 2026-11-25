@@ -300,7 +300,7 @@ func (e *NucleiEngine) closeInternal() {
 // Close all resources used by nuclei engine
 func (e *NucleiEngine) Close() {
 	e.closeInternal()
-	protocolinit.Close(e.opts.ExecutionId)
+	protocolinit.CloseWithLogger(e.opts.ExecutionId, e.Logger)
 }
 
 // ExecuteCallbackWithCtx executes templates on targets and calls callback on each result(only if results are found)
@@ -394,6 +394,10 @@ func (e *NucleiEngine) applyOptions(options []NucleiSDKOptions) error {
 			return err
 		}
 	}
+	if e.opts == nil {
+		return errors.New("engine options are nil")
+	}
+	e.Logger = e.opts.GetLogger()
 	for _, limit := range e.adjustedMaxHostErrors {
 		e.Logger.Warning().Msg("The concurrency value is higher than max-host-error")
 		e.Logger.Info().Msgf("Adjusting max-host-error to the concurrency value: %d", limit)

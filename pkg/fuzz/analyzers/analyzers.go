@@ -34,6 +34,15 @@ func InitialTransformation(analyzer Analyzer, logger *gologger.Logger) func(stri
 	return analyzer.ApplyInitialTransformation
 }
 
+func AnalyzeWithLogger(analyzer Analyzer, options *Options, logger *gologger.Logger) (bool, string, error) {
+	if bound, ok := analyzer.(interface {
+		AnalyzeWithLogger(*Options, *gologger.Logger) (bool, string, error)
+	}); ok {
+		return bound.AnalyzeWithLogger(options, logger)
+	}
+	return analyzer.Analyze(options)
+}
+
 // AnalyzerTemplate is the template for the analyzer
 type AnalyzerTemplate struct {
 	// description: |
@@ -71,7 +80,6 @@ func init() {
 
 // Options contains the options for the analyzer
 type Options struct {
-	Logger             *gologger.Logger
 	FuzzGenerated      fuzz.GeneratedRequest
 	HttpClient         *retryablehttp.Client
 	ResponseTimeDelay  time.Duration

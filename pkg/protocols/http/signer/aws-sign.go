@@ -13,7 +13,6 @@ import (
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/utils/errkit"
 )
@@ -22,7 +21,6 @@ const defaultEmptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934
 
 // AWSOptions
 type AWSOptions struct {
-	Logger         *gologger.Logger
 	AwsID          string
 	AwsSecretToken string
 	Service        string
@@ -60,7 +58,7 @@ func (a *AWSSigner) SignHTTP(ctx context.Context, request *http.Request) error {
 		return err
 	}
 	// contentHash is sha256 hash of response body
-	contentHash := a.getPayloadHash(request)
+	contentHash := a.getPayloadHash(ctx, request)
 	if err := a.signer.SignHTTP(ctx, *a.creds, request, contentHash, a.options.Service, a.options.Region, time.Now()); err != nil {
 		return errkit.Wrap(err, "failed to sign http request using aws v4 signer")
 	}
@@ -70,7 +68,7 @@ func (a *AWSSigner) SignHTTP(ctx context.Context, request *http.Request) error {
 }
 
 // getPayloadHash returns hex encoded SHA-256 of request body
-func (a *AWSSigner) getPayloadHash(request *http.Request) string {
+func (a *AWSSigner) getPayloadHash(ctx context.Context, request *http.Request) string {
 	if request.Body == nil {
 		// Default Hash of Empty Payload
 		return defaultEmptyPayloadHash
@@ -79,7 +77,7 @@ func (a *AWSSigner) getPayloadHash(request *http.Request) string {
 	// no need to close request body since it is a reusablereadercloser
 	bin, err := io.ReadAll(request.Body)
 	if err != nil {
-		logging.OrDefault(a.options.Logger).Error().Msgf("aws signer: failed to read request body: %s", err)
+		logging.FromContext(ctx).Error().Msgf("aws signer: failed to read request body: %s", err)
 	}
 	sha256Hash := sha256.Sum256(bin)
 	return hex.EncodeToString(sha256Hash[:])

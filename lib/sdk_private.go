@@ -177,18 +177,15 @@ func (e *NucleiEngine) init(ctx context.Context) error {
 	if err := config.DefaultConfig.InitializationError(); err != nil {
 		return errors.Wrap(err, "initialize nuclei configuration")
 	}
-	// Update logger ref (if it was changed by [WithLogger])
-	// (Logger is already initialized)
-	if e.opts.Logger != e.Logger {
-		e.Logger = e.opts.Logger
-	}
 
-	if e.opts.Verbose {
-		e.Logger.SetMaxLevel(levels.LevelVerbose)
-	} else if e.opts.Debug {
-		e.Logger.SetMaxLevel(levels.LevelDebug)
-	} else if e.opts.Silent {
-		e.Logger.SetMaxLevel(levels.LevelSilent)
+	if logger := e.opts.Logger; logger != nil {
+		if e.opts.Verbose {
+			logger.SetMaxLevel(levels.LevelVerbose)
+		} else if e.opts.Debug {
+			logger.SetMaxLevel(levels.LevelDebug)
+		} else if e.opts.Silent {
+			logger.SetMaxLevel(levels.LevelSilent)
+		}
 	}
 
 	if err := runner.ValidateOptions(e.opts); err != nil {
@@ -253,8 +250,7 @@ func (e *NucleiEngine) init(ctx context.Context) error {
 	if ropts == nil {
 		ropts = &reporting.Options{}
 	}
-	ropts.Logger = e.Logger
-	if e.rc, err = reporting.New(ropts, "", false); err != nil {
+	if e.rc, err = reporting.NewWithLogger(ropts, "", false, e.Logger); err != nil {
 		return err
 	}
 	e.interactshOpts.IssuesClient = e.rc
@@ -304,7 +300,7 @@ func (e *NucleiEngine) init(ctx context.Context) error {
 		DoNotCache:         e.opts.DoNotCacheTemplates,
 		InputHelper:        input.NewHelper(),
 		TemporaryDirectory: e.tmpDir,
-		Logger:             e.opts.Logger,
+		Logger:             e.Logger,
 	}
 	if e.opts.ShouldUseHostError() && e.hostErrCache != nil {
 		e.executerOpts.HostErrorsCache = e.hostErrCache
@@ -396,7 +392,7 @@ func (e *NucleiEngine) init(ctx context.Context) error {
 
 		if DefaultConfig.IgnoreFileNeedsUpdate(latestIgnoreHash) {
 			if err := installer.UpdateIgnoreFile(); err != nil {
-				e.opts.Logger.Warning().Msgf("failed to update nuclei ignore file: %s\n", err)
+				e.Logger.Warning().Msgf("failed to update nuclei ignore file: %s\n", err)
 			}
 		}
 	}

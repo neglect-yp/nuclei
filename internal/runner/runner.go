@@ -541,7 +541,7 @@ func (r *Runner) Close() {
 	if r.inputProvider != nil {
 		r.inputProvider.Close()
 	}
-	protocolinit.Close(r.options.ExecutionId)
+	protocolinit.CloseWithLogger(r.options.ExecutionId, r.options.GetLogger())
 	if r.pprofServer != nil {
 		r.pprofServer.Stop()
 	}

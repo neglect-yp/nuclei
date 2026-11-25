@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
@@ -14,12 +15,17 @@ import (
 // JSONFormat is a JSON format parser for nuclei
 // input HTTP requests
 type JSONFormat struct {
-	opts formats.InputFormatOptions
+	logger *gologger.Logger
+	opts   formats.InputFormatOptions
 }
 
 // New creates a new JSON format parser
 func New() *JSONFormat {
 	return &JSONFormat{}
+}
+
+func NewWithLogger(logger *gologger.Logger) *JSONFormat {
+	return &JSONFormat{logger: logger}
 }
 
 var _ formats.Format = &JSONFormat{}
@@ -70,7 +76,7 @@ func (j *JSONFormat) Parse(input io.Reader, resultsCb formats.ParseReqRespCallba
 		}
 		rawRequest, err := types.ParseRawRequestWithURL(request.Request.Raw, request.URL)
 		if err != nil {
-			logging.OrDefault(j.opts.Logger).Warning().Msgf("jsonl: Could not parse raw request %s: %s\n", request.URL, err)
+			logging.OrDefault(j.logger).Warning().Msgf("jsonl: Could not parse raw request %s: %s\n", request.URL, err)
 			continue
 		}
 		if resp := buildProxifyResponse(request.Response); resp != nil {

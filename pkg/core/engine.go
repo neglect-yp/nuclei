@@ -70,7 +70,7 @@ func (e *Engine) SetResultHook(hook ResultHook) {
 func New(options *types.Options) *Engine {
 	engine := &Engine{
 		options: options,
-		Logger:  options.Logger,
+		Logger:  options.GetLogger(),
 	}
 	engine.workPool = engine.GetWorkPool()
 	return engine

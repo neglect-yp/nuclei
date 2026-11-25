@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
@@ -21,12 +22,17 @@ const requestSeparator = "###"
 
 // RawFormat is a parser for files containing one or more raw HTTP requests
 type RawFormat struct {
-	opts formats.InputFormatOptions
+	logger *gologger.Logger
+	opts   formats.InputFormatOptions
 }
 
 // New creates a new raw HTTP request parser
 func New() *RawFormat {
 	return &RawFormat{}
+}
+
+func NewWithLogger(logger *gologger.Logger) *RawFormat {
+	return &RawFormat{logger: logger}
 }
 
 var _ formats.Format = &RawFormat{}
@@ -50,11 +56,11 @@ func (r *RawFormat) Parse(input io.Reader, resultsCb formats.ParseReqRespCallbac
 	for _, request := range splitRequests(string(data)) {
 		reqResp, err := types.ParseRawRequest(terminateHeaders(request))
 		if err != nil {
-			logging.OrDefault(r.opts.Logger).Warning().Msgf("http: could not parse raw request in %s: %s\n", filePath, err)
+			logging.OrDefault(r.logger).Warning().Msgf("http: could not parse raw request in %s: %s\n", filePath, err)
 			continue
 		}
 		if reqResp.URL.Host == "" {
-			logging.OrDefault(r.opts.Logger).Warning().Msgf("http: skipped raw request in %s: no target, add a Host header or an absolute request target\n", filePath)
+			logging.OrDefault(r.logger).Warning().Msgf("http: skipped raw request in %s: no target, add a Host header or an absolute request target\n", filePath)
 			continue
 		}
 		if reqResp.URL.Scheme == "" {
