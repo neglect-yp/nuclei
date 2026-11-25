@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
 	YamlUtil "gopkg.in/yaml.v3"
@@ -88,7 +88,7 @@ func (j *YamlMultiDocFormat) Parse(input io.Reader, resultsCb formats.ParseReqRe
 
 		rawRequest, err := types.ParseRawRequestWithURL(raw, request.URL)
 		if err != nil {
-			gologger.Warning().Msgf("multidoc-yaml: Could not parse raw request %s: %s", request.URL, err)
+			logging.OrDefault(j.opts.Logger).Warning().Msgf("multidoc-yaml: Could not parse raw request %s: %s", request.URL, err)
 			continue
 		}
 		if resp := buildProxifyResponse(request.Response); resp != nil {

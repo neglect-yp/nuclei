@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
-	"github.com/projectdiscovery/gologger/writer"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
@@ -54,7 +54,7 @@ func (r countingRequest) ExecuteWithResults(
 // the generic executer does for a template with one, and the next block runs
 // (#8238).
 //
-//nolint:exhaustruct,exhaustruct_v5,paralleltest // fixtures keep zero-value defaults; the logger is global
+//nolint:exhaustruct,exhaustruct_v5,paralleltest // fixtures keep zero-value defaults
 func TestFailedRequestWarns(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -71,13 +71,10 @@ func TestFailedRequestWarns(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var logged bytes.Buffer
 
-			gologger.DefaultLogger.SetWriter(&utils.CaptureWriter{Buffer: &logged})
-			gologger.DefaultLogger.SetMaxLevel(levels.LevelWarning)
-			t.Cleanup(func() {
-				// gologger's own defaults: it has no getter to save the previous ones
-				gologger.DefaultLogger.SetWriter(writer.NewCLI())
-				gologger.DefaultLogger.SetMaxLevel(levels.LevelInfo)
-			})
+			logger := &gologger.Logger{}
+			logger.SetWriter(&utils.CaptureWriter{Buffer: &logged})
+			logger.SetFormatter(formatter.NewCLI(true))
+			logger.SetMaxLevel(levels.LevelWarning)
 
 			var failedCalls, nextCalls int
 
@@ -86,7 +83,7 @@ func TestFailedRequestWarns(t *testing.T) {
 					countingRequest{protocolType: test.protocolType, err: test.err, calls: &failedCalls},
 					countingRequest{protocolType: templateTypes.HTTPProtocol, calls: &nextCalls},
 				},
-				&protocols.ExecutorOptions{TemplateID: "t", Options: &types.Options{}},
+				&protocols.ExecutorOptions{TemplateID: "t", Logger: logger, Options: &types.Options{}},
 				nil,
 			)
 			ctx := scan.NewScanContext(context.Background(), contextargs.NewWithInput(context.Background(), "http://127.0.0.1"))
@@ -128,17 +125,14 @@ func (r cancelingRequest) ExecuteWithResults(
 // error without a warning: the engine warns about the returned error, so a
 // warning here would print the cancellation twice.
 //
-//nolint:exhaustruct,exhaustruct_v5,paralleltest // fixtures keep zero-value defaults; the logger is global
+//nolint:exhaustruct,exhaustruct_v5,paralleltest // fixtures keep zero-value defaults
 func TestCanceledRequestReturnsContextError(t *testing.T) {
 	var logged bytes.Buffer
 
-	gologger.DefaultLogger.SetWriter(&utils.CaptureWriter{Buffer: &logged})
-	gologger.DefaultLogger.SetMaxLevel(levels.LevelWarning)
-	t.Cleanup(func() {
-		// gologger's own defaults: it has no getter to save the previous ones
-		gologger.DefaultLogger.SetWriter(writer.NewCLI())
-		gologger.DefaultLogger.SetMaxLevel(levels.LevelInfo)
-	})
+	logger := &gologger.Logger{}
+	logger.SetWriter(&utils.CaptureWriter{Buffer: &logged})
+	logger.SetFormatter(formatter.NewCLI(true))
+	logger.SetMaxLevel(levels.LevelWarning)
 
 	goCtx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -150,7 +144,7 @@ func TestCanceledRequestReturnsContextError(t *testing.T) {
 			cancelingRequest{cancel: cancel},
 			countingRequest{protocolType: templateTypes.HTTPProtocol, calls: &nextCalls},
 		},
-		&protocols.ExecutorOptions{TemplateID: "t", Options: &types.Options{}},
+		&protocols.ExecutorOptions{TemplateID: "t", Logger: logger, Options: &types.Options{}},
 		nil,
 	)
 	ctx := scan.NewScanContext(goCtx, contextargs.NewWithInput(goCtx, "http://127.0.0.1"))

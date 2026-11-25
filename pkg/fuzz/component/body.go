@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/dataformat"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils/httpbody"
 	"github.com/projectdiscovery/retryablehttp-go"
@@ -54,7 +54,7 @@ func (b *Body) Parse(req *retryablehttp.Request) (bool, error) {
 		return false, nil
 	}
 
-	b.value = NewValue(dataStr)
+	b.value = newValue(dataStr, logging.FromContext(req.Context()))
 	tmp := b.value.Parsed()
 
 	switch {
@@ -80,7 +80,7 @@ func (b *Body) Parse(req *retryablehttp.Request) (bool, error) {
 
 	parsed, err := b.parseBody(dataformat.FormDataFormat, req)
 	if err != nil {
-		gologger.Warning().Msgf("Could not parse body as form data: %s\n", err)
+		b.value.logger.Warning().Msgf("Could not parse body as form data: %s\n", err)
 		return b.parseBody(dataformat.RawDataFormat, req)
 	}
 	return parsed, err

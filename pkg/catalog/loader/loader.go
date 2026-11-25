@@ -151,6 +151,7 @@ func New(cfg *Config) (*Store, error) {
 	// All other filtering (tags, authors, severities, IDs, protocols, paths) is
 	// handled by [index.Filter].
 	tagFilter, err := templates.NewTagFilter(&templates.TagFilterConfig{
+		Logger:            cfg.Logger,
 		IncludeConditions: cfg.IncludeConditions,
 	})
 	if err != nil {

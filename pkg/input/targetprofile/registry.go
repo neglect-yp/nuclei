@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/index"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
@@ -19,6 +20,7 @@ import (
 // loaded templates before the scan starts. Selections are interned, so targets
 // sharing a selector share one memoized decision per template.
 type Registry struct {
+	logger       *gologger.Logger
 	templatesDir string
 
 	mu           sync.RWMutex
@@ -36,7 +38,12 @@ var _ protocols.TargetScope = (*Registry)(nil)
 // NewRegistry creates a registry resolving profiles and relative template
 // paths against templatesDir.
 func NewRegistry(templatesDir string) *Registry {
+	return NewRegistryWithLogger(templatesDir, gologger.DefaultLogger)
+}
+
+func NewRegistryWithLogger(templatesDir string, logger *gologger.Logger) *Registry {
 	return &Registry{
+		logger:       logging.OrDefault(logger),
 		templatesDir: templatesDir,
 		targets:      make(map[targetKey]*Selection),
 		selections:   make(map[string]*Selection),
@@ -222,7 +229,7 @@ func (r *Registry) profile(name string) (selector, error) {
 		return nil, err
 	}
 	if len(ignored) > 0 {
-		gologger.Warning().Msgf("Profile %q keys %s apply to the whole scan and are ignored per target", name, strings.Join(ignored, ", "))
+		r.logger.Warning().Msgf("Profile %q keys %s apply to the whole scan and are ignored per target", name, strings.Join(ignored, ", "))
 	}
 
 	r.mu.Lock()

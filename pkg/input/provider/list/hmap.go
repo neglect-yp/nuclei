@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/hmap/filekv"
@@ -43,6 +44,7 @@ const DefaultMaxDedupeItemsCount = 10000
 // ListInputProvider is a hmap/filekv backed nuclei ListInputProvider provider
 // it supports list type of input ex: urls,file,stdin,uncover,etc. (i.e just url not complete request/response)
 type ListInputProvider struct {
+	logger              *gologger.Logger
 	ipOptions           *ipOptions
 	inputCount          int64
 	excludedCount       int64
@@ -84,6 +86,7 @@ func New(opts *Options) (*ListInputProvider, error) {
 	}
 
 	input := &ListInputProvider{
+		logger:        options.GetLogger(),
 		hostMap:       hm,
 		normalizeURLs: !options.DisableURLNormalization,
 		patterns:      normalize.NewFingerprinter(options.MaxURLsPerPattern),
@@ -94,7 +97,7 @@ func New(opts *Options) (*ListInputProvider, error) {
 			Auto:       len(options.IPVersion) == 0,
 		},
 		excludedHosts: make(map[string]struct{}),
-		profiles:      targetprofile.NewRegistry(configuration.TemplatesDirectory(options, config.DefaultConfig)),
+		profiles:      targetprofile.NewRegistryWithLogger(configuration.TemplatesDirectory(options, config.DefaultConfig), options.GetLogger()),
 	}
 	if options.Stream {
 		fkvOptions := filekv.DefaultOptions
@@ -114,16 +117,16 @@ func New(opts *Options) (*ListInputProvider, error) {
 		return nil, initErr
 	}
 	if input.excludedCount > 0 {
-		gologger.Info().Msgf("Number of hosts excluded from input: %d", input.excludedCount)
+		input.logger.Info().Msgf("Number of hosts excluded from input: %d", input.excludedCount)
 	}
 	if input.dupeCount > 0 {
-		gologger.Info().Msgf("Supplied input was automatically deduplicated (%d removed).", input.dupeCount)
+		input.logger.Info().Msgf("Supplied input was automatically deduplicated (%d removed).", input.dupeCount)
 	}
 	if input.skippedCount > 0 {
-		gologger.Info().Msgf("Number of hosts skipped from input due to exclusion: %d", input.skippedCount)
+		input.logger.Info().Msgf("Number of hosts skipped from input due to exclusion: %d", input.skippedCount)
 	}
 	if input.patternSkippedCount > 0 {
-		gologger.Info().Msgf("Supplied input was limited by max urls per pattern (%d removed).", input.patternSkippedCount)
+		input.logger.Info().Msgf("Supplied input was limited by max urls per pattern (%d removed).", input.patternSkippedCount)
 	}
 	return input, nil
 }
@@ -138,7 +141,7 @@ func (i *ListInputProvider) Iterate(callback func(value *contextargs.MetaInput) 
 	if i.hostMapStream != nil {
 		i.hostMapStreamOnce.Do(func() {
 			if err := i.hostMapStream.Process(); err != nil {
-				gologger.Warning().Msgf("error in stream mode processing: %s\n", err)
+				logging.OrDefault(i.logger).Warning().Msgf("error in stream mode processing: %s\n", err)
 			}
 		})
 	}
@@ -184,19 +187,19 @@ func (i *ListInputProvider) selectedIPs(executionId, hostname string) []string {
 	}
 	dialers := protocolstate.GetDialersWithId(executionId)
 	if dialers == nil {
-		gologger.Warning().Msgf("cannot resolve %s: dialer %s not found", hostname, executionId)
+		logging.OrDefault(i.logger).Warning().Msgf("cannot resolve %s: dialer %s not found", hostname, executionId)
 		return nil
 	}
 	dnsData, err := dialers.Fastdialer.GetDNSData(hostname)
 	if err != nil {
-		gologger.Warning().Msgf("DNS resolution failed for %s: %v", hostname, err)
+		logging.OrDefault(i.logger).Warning().Msgf("DNS resolution failed for %s: %v", hostname, err)
 		if i.ipOptions.IPV4 {
 			return []string{""}
 		}
 		return nil
 	}
 	if len(dnsData.A) == 0 && len(dnsData.AAAA) == 0 {
-		gologger.Warning().Msgf("DNS resolution returned no IP addresses for %s", hostname)
+		logging.OrDefault(i.logger).Warning().Msgf("DNS resolution returned no IP addresses for %s", hostname)
 		if i.ipOptions.IPV4 {
 			return []string{""}
 		}
@@ -211,7 +214,7 @@ func (i *ListInputProvider) selectedIPs(executionId, hostname string) []string {
 			ips = append(ips, dnsData.A...)
 		}
 		if len(ips) == 0 {
-			gologger.Warning().Msgf("no DNS addresses matching -iv selection for %s", hostname)
+			logging.OrDefault(i.logger).Warning().Msgf("no DNS addresses matching -iv selection for %s", hostname)
 		}
 		return ips
 	}
@@ -224,7 +227,7 @@ func (i *ListInputProvider) selectedIPs(executionId, hostname string) []string {
 		ips = append(ips, "")
 	}
 	if len(ips) == 0 {
-		gologger.Warning().Msgf("no IPv6 DNS address found for %s", hostname)
+		logging.OrDefault(i.logger).Warning().Msgf("no IPv6 DNS address found for %s", hostname)
 	}
 	return ips
 }
@@ -243,7 +246,7 @@ func (i *ListInputProvider) set(executionId string, value string, selection *tar
 	// parse hostname if url is given
 	urlx, err := urlutil.Parse(URL)
 	if err != nil || (urlx != nil && urlx.Host == "") {
-		gologger.Debug().Label("url").MsgFunc(func() string {
+		logging.OrDefault(i.logger).Debug().Label("url").MsgFunc(func() string {
 			if err != nil {
 				return fmt.Sprintf("failed to parse url %v got %v skipping ip selection", URL, err)
 			}
@@ -346,7 +349,7 @@ func (i *ListInputProvider) initializeInputSources(opts *Options) error {
 		}
 	}
 	if options.Uncover && options.UncoverQuery != nil {
-		gologger.Info().Msgf("Running uncover query against: %s", strings.Join(options.UncoverEngine, ","))
+		logging.OrDefault(i.logger).Info().Msgf("Running uncover query against: %s", strings.Join(options.UncoverEngine, ","))
 		uncoverOpts := &uncoverlib.Options{
 			Agents:        options.UncoverEngine,
 			Queries:       options.UncoverQuery,
@@ -356,7 +359,7 @@ func (i *ListInputProvider) initializeInputSources(opts *Options) error {
 			RateLimit:     uint(options.UncoverRateLimit),
 			RateLimitUnit: time.Minute, // default unit is minute
 		}
-		ch, err := uncover.GetTargetsFromUncover(context.TODO(), options.UncoverField, uncoverOpts)
+		ch, err := uncover.GetTargetsFromUncover(logging.WithLogger(context.TODO(), options.GetLogger()), options.UncoverField, uncoverOpts)
 		if err != nil {
 			return err
 		}
@@ -431,7 +434,7 @@ func (i *ListInputProvider) addInput(executionId string, item string) error {
 func (i *ListInputProvider) setPinned(executionId string, line targetprofile.Line) {
 	if dialers := protocolstate.GetDialersWithId(executionId); dialers != nil && dialers.NetworkPolicy != nil {
 		if !dialers.NetworkPolicy.Validate(line.IP) {
-			gologger.Warning().Msgf("Skipping %s: ip %s is not allowed by the network policy", line.Target, line.IP)
+			logging.OrDefault(i.logger).Warning().Msgf("Skipping %s: ip %s is not allowed by the network policy", line.Target, line.IP)
 			i.skippedCount++
 			return
 		}
@@ -454,7 +457,7 @@ func (i *ListInputProvider) isExcluded(URL string) bool {
 	metaInput.Input = URL
 	key, err := metaInput.MarshalString()
 	if err != nil {
-		gologger.Warning().Msgf("%s\n", err)
+		logging.OrDefault(i.logger).Warning().Msgf("%s\n", err)
 		return false
 	}
 
@@ -492,7 +495,7 @@ func (i *ListInputProvider) Del(executionId string, value string) {
 	// parse hostname if url is given
 	urlx, err := urlutil.Parse(URL)
 	if err != nil || (urlx != nil && urlx.Host == "") {
-		gologger.Debug().Label("url").MsgFunc(func() string {
+		logging.OrDefault(i.logger).Debug().Label("url").MsgFunc(func() string {
 			if err != nil {
 				return fmt.Sprintf("failed to parse url %v got %v skipping ip selection", URL, err)
 			}
@@ -524,7 +527,7 @@ func (i *ListInputProvider) Del(executionId string, value string) {
 func (i *ListInputProvider) setItem(metaInput *contextargs.MetaInput, selection *targetprofile.Selection) {
 	key, err := metaInput.MarshalString()
 	if err != nil {
-		gologger.Warning().Msgf("%s\n", err)
+		logging.OrDefault(i.logger).Warning().Msgf("%s\n", err)
 		return
 	}
 	// A crawled list routinely holds the same resource several times over,
@@ -638,7 +641,7 @@ func (i *ListInputProvider) delItem(targets ...*contextargs.MetaInput) {
 // setHostMapStream sets item in stream mode
 func (i *ListInputProvider) setHostMapStream(data string) {
 	if _, err := i.hostMapStream.Merge([][]byte{[]byte(data)}); err != nil {
-		gologger.Warning().Msgf("%s\n", err)
+		logging.OrDefault(i.logger).Warning().Msgf("%s\n", err)
 		return
 	}
 }

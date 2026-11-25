@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/analyzers"
 	"github.com/projectdiscovery/retryablehttp-go"
 )
@@ -48,13 +49,17 @@ func (a *Analyzer) Name() string {
 // It also applies the payload transformations to the payload
 // which includes [RANDNUM] and [RANDSTR]
 func (a *Analyzer) ApplyInitialTransformation(data string, params map[string]interface{}) string {
+	return a.ApplyInitialTransformationWithLogger(data, params, gologger.DefaultLogger)
+}
+
+func (a *Analyzer) ApplyInitialTransformationWithLogger(data string, params map[string]interface{}, logger *gologger.Logger) string {
 	duration := DefaultSleepDuration
 	if len(params) > 0 {
 		if v, ok := params["sleep_duration"]; ok {
 			duration, ok = v.(int)
 			if !ok {
 				duration = DefaultSleepDuration
-				gologger.Warning().Msgf("Invalid sleep_duration parameter type, using default value: %d", duration)
+				logger.Warning().Msgf("Invalid sleep_duration parameter type, using default value: %d", duration)
 			}
 		}
 	}
@@ -113,7 +118,7 @@ func (a *Analyzer) Analyze(options *analyzers.Options) (bool, string, error) {
 	reqSender := func(delay int) (float64, error) {
 		gr := options.FuzzGenerated
 		replaced := strings.ReplaceAll(gr.OriginalPayload, "[SLEEPTIME]", strconv.Itoa(delay))
-		replaced = a.ApplyInitialTransformation(replaced, options.AnalyzerParameters)
+		replaced = a.ApplyInitialTransformationWithLogger(replaced, options.AnalyzerParameters, logging.OrDefault(options.Logger))
 
 		if err := gr.Component.SetValue(gr.Key, replaced); err != nil {
 			return 0, errors.Wrap(err, "could not set value in component")
@@ -133,7 +138,7 @@ func (a *Analyzer) Analyze(options *analyzers.Options) (bool, string, error) {
 			rebuilt.Header[k] = vs
 		}
 
-		gologger.Verbose().Msgf("[%s] Sending request with %d delay for: %s", a.Name(), delay, rebuilt.String())
+		logging.OrDefault(options.Logger).Verbose().Msgf("[%s] Sending request with %d delay for: %s", a.Name(), delay, rebuilt.String())
 
 		timeTaken, err := doHTTPRequestWithTimeTracing(rebuilt, options.HttpClient)
 		if err != nil {

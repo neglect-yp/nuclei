@@ -14,6 +14,7 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/utils/errkit"
 )
 
@@ -21,6 +22,7 @@ const defaultEmptyPayloadHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934
 
 // AWSOptions
 type AWSOptions struct {
+	Logger         *gologger.Logger
 	AwsID          string
 	AwsSecretToken string
 	Service        string
@@ -77,7 +79,7 @@ func (a *AWSSigner) getPayloadHash(request *http.Request) string {
 	// no need to close request body since it is a reusablereadercloser
 	bin, err := io.ReadAll(request.Body)
 	if err != nil {
-		gologger.Error().Msgf("aws signer: failed to read request body: %s", err)
+		logging.OrDefault(a.options.Logger).Error().Msgf("aws signer: failed to read request body: %s", err)
 	}
 	sha256Hash := sha256.Sum256(bin)
 	return hex.EncodeToString(sha256Hash[:])

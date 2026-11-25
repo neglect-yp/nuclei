@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
 	fileutil "github.com/projectdiscovery/utils/file"
 	folderutil "github.com/projectdiscovery/utils/folder"
 )
@@ -170,7 +169,7 @@ func (request *Request) validatePath(absPath, item string, inArchive bool) bool 
 	}
 
 	if matchingRule, ok := request.isInDenyList(absPath, item); ok {
-		gologger.Verbose().Msgf("Ignoring path %s due to denylist item %s\n", item, matchingRule)
+		request.GetLogger().Verbose().Msgf("Ignoring path %s due to denylist item %s\n", item, matchingRule)
 		return false
 	}
 

@@ -10,9 +10,8 @@ import (
 
 	"github.com/projectdiscovery/useragent"
 
-	"github.com/projectdiscovery/gologger"
-	"github.com/projectdiscovery/nuclei/v3/pkg/authprovider"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz"
+	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/expressions"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/generators"
@@ -121,7 +120,8 @@ func (gr *generatedRequest) setReqURLPattern(reqURLPattern string) {
 }
 
 // ApplyAuth applies the auth provider to the generated request
-func (g *generatedRequest) ApplyAuth(provider authprovider.AuthProvider) {
+func (g *generatedRequest) ApplyAuth(options *protocols.ExecutorOptions) {
+	provider := options.AuthProvider
 	if provider == nil {
 		return
 	}
@@ -134,14 +134,14 @@ func (g *generatedRequest) ApplyAuth(provider authprovider.AuthProvider) {
 	if g.rawRequest != nil {
 		parsed, err := urlutil.ParseAbsoluteURL(g.rawRequest.FullURL, true)
 		if err != nil {
-			gologger.Warning().Msgf("[authprovider] Could not parse URL %s: %s\n", g.rawRequest.FullURL, err)
+			options.GetLogger().Warning().Msgf("[authprovider] Could not parse URL %s: %s\n", g.rawRequest.FullURL, err)
 			return
 		}
 		authStrategies := provider.LookupURLX(parsed)
 		// here we need to apply it custom because we don't have a standard/official
 		// rawhttp request format ( which we probably should have )
 		for _, strategy := range authStrategies {
-			g.rawRequest.ApplyAuthStrategy(strategy)
+			g.rawRequest.ApplyAuthStrategyWithLogger(strategy, options.GetLogger())
 		}
 	}
 }
@@ -230,7 +230,7 @@ func (r *requestGenerator) Make(ctx context.Context, input *contextargs.Context,
 	finalVars := generators.MergeMaps(allVars, payloads)
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("HTTP Protocol request variables: %s\n", vardump.DumpVariables(finalVars))
+		r.options.GetLogger().Debug().Msgf("HTTP Protocol request variables: %s\n", vardump.DumpVariables(finalVars))
 	}
 
 	// Note: If possible any changes to current logic (i.e evaluate -> then parse URL)
@@ -599,7 +599,7 @@ func (r *requestGenerator) generateRawRequest(ctx context.Context, rawRequest st
 		if len(r.options.Options.CustomHeaders) > 0 {
 			customHeaders := make([]string, 0, len(r.options.Options.CustomHeaders))
 			for _, header := range r.options.Options.CustomHeaders {
-				customHeaders = append(customHeaders, evaluateCustomHeaderExpressions(r.options.TemplateID, header, finalVars))
+				customHeaders = append(customHeaders, evaluateCustomHeaderExpressions(r.options, header, finalVars))
 			}
 			_ = rawRequestData.TryFillCustomHeaders(customHeaders)
 		}

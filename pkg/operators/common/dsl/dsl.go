@@ -3,6 +3,7 @@ package dsl
 import (
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/projectdiscovery/dsl"
 	"github.com/projectdiscovery/gologger"
@@ -65,6 +66,22 @@ func init() {
 		}
 	}
 	FunctionNames = dsl.GetFunctionNames(HelperFunctions)
+}
+
+func HelpersWithLogger(logger *gologger.Logger) map[string]govaluate.ExpressionFunction {
+	functions := maps.Clone(HelperFunctions)
+	if logger == nil {
+		return functions
+	}
+	functions["print_debug"] = func(args ...interface{}) (interface{}, error) {
+		if len(args) == 0 {
+			return nil, dsl.ErrInvalidDslFunction
+		}
+		logger.Debug().Msgf("print_debug value: %s", fmt.Sprint(args...))
+		return true, nil
+	}
+	functions["printdebug"] = functions["print_debug"]
+	return functions
 }
 
 type CompilationError struct {

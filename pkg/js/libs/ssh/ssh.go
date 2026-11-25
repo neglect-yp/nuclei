@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/utils/vardump"
 	"github.com/projectdiscovery/utils/errkit"
@@ -58,7 +58,7 @@ func (c *SSHClient) SetTimeout(sec int) {
 // ```
 func (c *SSHClient) Connect(ctx context.Context, host string, port int, username, password string) (bool, error) {
 	executionId := ctx.Value("executionId").(string)
-	conn, err := connect(&connectOptions{
+	conn, err := connect(ctx, &connectOptions{
 		Host:        host,
 		Port:        port,
 		User:        username,
@@ -86,7 +86,7 @@ func (c *SSHClient) Connect(ctx context.Context, host string, port int, username
 // ```
 func (c *SSHClient) ConnectWithKey(ctx context.Context, host string, port int, username, key string) (bool, error) {
 	executionId := ctx.Value("executionId").(string)
-	conn, err := connect(&connectOptions{
+	conn, err := connect(ctx, &connectOptions{
 		Host:        host,
 		Port:        port,
 		User:        username,
@@ -239,7 +239,7 @@ func connectSSHInfoMode(opts *connectOptions) (*ssh.HandshakeLog, error) {
 	return data, nil
 }
 
-func connect(opts *connectOptions) (*ssh.Client, error) {
+func connect(ctx context.Context, opts *connectOptions) (*ssh.Client, error) {
 	if err := opts.validate(); err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func connect(opts *connectOptions) (*ssh.Client, error) {
 			filledCount := 0
 			for i, question := range questions {
 				challenge := map[string]any{"user": user, "instruction": instruction, "question": question, "echo": echos[i]}
-				gologger.Debug().Msgf("SSH keyboard-interactive question %d/%d: %s", i+1, len(questions), vardump.DumpVariables(challenge))
+				logging.FromContext(ctx).Debug().Msgf("SSH keyboard-interactive question %d/%d: %s", i+1, len(questions), vardump.DumpVariables(challenge))
 				if !echos[i] && passwordQuestionPattern.MatchString(question) {
 					answers[i] = opts.Password
 					filledCount++
@@ -267,7 +267,7 @@ func connect(opts *connectOptions) (*ssh.Client, error) {
 					filledCount++
 				}
 			}
-			gologger.Debug().Msgf("SSH keyboard-interactive: %d/%d questions filled", filledCount, len(questions))
+			logging.FromContext(ctx).Debug().Msgf("SSH keyboard-interactive: %d/%d questions filled", filledCount, len(questions))
 			return answers, nil
 		}
 		conf.Auth = append(conf.Auth, ssh.KeyboardInteractiveChallenge(cb))

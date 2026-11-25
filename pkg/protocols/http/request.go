@@ -19,10 +19,10 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"go.uber.org/multierr"
 	"moul.io/http2curl"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/analyzers"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/component"
 	fuzzStats "github.com/projectdiscovery/nuclei/v3/pkg/fuzz/stats"
@@ -190,7 +190,7 @@ func (request *Request) executeRaceRequest(input *contextargs.Context, dynamicVa
 	// Auth is applied again on each raced request. The dump is what replay
 	// sends, so it has to include the same headers.
 	if !request.SkipSecretFile {
-		requestForDump.ApplyAuth(request.options.AuthProvider)
+		requestForDump.ApplyAuth(request.options)
 	}
 	dumpedRequest, err := dump(requestForDump, reqURL, 0)
 	if err != nil {
@@ -201,8 +201,8 @@ func (request *Request) executeRaceRequest(input *contextargs.Context, dynamicVa
 	if request.options.Options.Debug || request.options.Options.DebugRequests || request.options.Options.StoreResponse {
 		msg := fmt.Sprintf("[%s] Dumped HTTP request for %s\n\n", request.options.TemplateID, reqURL)
 		if request.options.Options.Debug || request.options.Options.DebugRequests {
-			gologger.Info().Msg(msg)
-			gologger.Print().Msgf("%s", savedRequest)
+			request.GetLogger().Info().Msg(msg)
+			logging.Print(request.GetLogger()).Msgf("%s", savedRequest)
 		}
 		if request.options.Options.StoreResponse {
 			request.options.Output.WriteStoreDebugData(reqURL, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, savedRequest))
@@ -1352,7 +1352,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		if generatedRequest.request != nil && generatedRequest.request.Body != nil {
 			if err = reuseRequestBody(generatedRequest.request); err != nil {
 				// log error and continue
-				gologger.Verbose().Msgf("[%v] Could not read request body while forcing transfer encoding: %s\n", request.options.TemplateID, err)
+				request.GetLogger().Verbose().Msgf("[%v] Could not read request body while forcing transfer encoding: %s\n", request.options.TemplateID, err)
 				err = nil
 			}
 		}
@@ -1401,7 +1401,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 				varErr = expressions.ContainsUnresolvedVariables(item)
 			}
 			if varErr != nil && !request.SkipVariablesCheck {
-				gologger.Warning().Msgf("[%s] Could not make http request for %s: %v\n", request.options.TemplateID, input.MetaInput.Input, varErr)
+				request.GetLogger().Warning().Msgf("[%s] Could not make http request for %s: %v\n", request.options.TemplateID, input.MetaInput.Input, varErr)
 				return ErrMissingVars
 			}
 		}
@@ -1412,7 +1412,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		if request.options.AuthProvider != nil && cookieFuzzing {
 			removeFuzzedCookieFields(generatedRequest.request.Request, fuzzed.FuzzedKeys)
 		}
-		generatedRequest.ApplyAuth(request.options.AuthProvider)
+		generatedRequest.ApplyAuth(request.options)
 	}
 	if cookieFuzzing {
 		restoreFuzzedCookieFields(generatedRequest.request.Request, fuzzed.FuzzedKeys)
@@ -1567,7 +1567,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 							tracker.RecordCorrection()
 							httpsCorrectionTracker = tracker
 							httpsCorrectionURL = requestURL
-							gologger.Debug().Msgf("[http-to-https-tracker] Corrected HTTP to HTTPS for %s", requestURL)
+							request.GetLogger().Debug().Msgf("[http-to-https-tracker] Corrected HTTP to HTTPS for %s", requestURL)
 						}
 					}
 				}
@@ -1606,7 +1606,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 				generatedRequest.request.Scheme = "https"
 
 				if tracker := httpclientpool.GetHTTPToHTTPSPortTracker(request.options.Options); tracker != nil {
-					tracker.RecordHTTPToHTTPSPort(requestURL)
+					tracker.RecordHTTPToHTTPSPortWithLogger(requestURL, request.GetLogger())
 					tracker.RecordCorrection()
 					httpsCorrectionTracker = tracker
 					httpsCorrectionURL = requestURL
@@ -1625,7 +1625,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 			// wrong detection from silently dropping findings at scale.
 			if err != nil && httpsCorrectionTracker != nil && generatedRequest.request != nil && generatedRequest.request.Scheme == "https" {
 				generatedRequest.request.Scheme = "http"
-				httpsCorrectionTracker.Evict(httpsCorrectionURL)
+				httpsCorrectionTracker.EvictWithLogger(httpsCorrectionURL, request.GetLogger())
 				rewindRequestBody(generatedRequest.request)
 				resp, err = executingClient.Do(generatedRequest.request)
 			}
@@ -1663,8 +1663,8 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 			msg := fmt.Sprintf("[%s] Dumped HTTP request for %s\n\n", request.options.TemplateID, formedURL)
 
 			if request.options.Options.Debug || request.options.Options.DebugRequests {
-				gologger.Info().Msg(msg)
-				gologger.Print().Msgf("%s", dumpedRequestString)
+				request.GetLogger().Info().Msg(msg)
+				logging.Print(request.GetLogger()).Msgf("%s", dumpedRequestString)
 			}
 			if request.options.Options.StoreResponse {
 				request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, dumpedRequestString))
@@ -1738,7 +1738,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 		}
 	}
 
-	gologger.Verbose().Msgf("[%s] Sent HTTP request to %s", request.options.TemplateID, formedURL)
+	request.GetLogger().Verbose().Msgf("[%s] Sent HTTP request to %s", request.options.TemplateID, formedURL)
 	request.options.Output.Request(request.options.TemplatePath, formedURL, request.Type().String(), err)
 
 	duration := time.Since(timeStart)
@@ -1864,16 +1864,17 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 				analyzerClient = request.getHTTPClientForHost(hostname)
 			}
 			if analyzerClient == nil {
-				gologger.Warning().Msgf("Could not get http client for analyzer %s on %s, skipping analysis\n", request.Analyzer.Name, hostname)
+				request.GetLogger().Warning().Msgf("Could not get http client for analyzer %s on %s, skipping analysis\n", request.Analyzer.Name, hostname)
 			} else {
 				analysisMatched, analysisDetails, err := analyzer.Analyze(&analyzers.Options{
+					Logger:             request.GetLogger(),
 					FuzzGenerated:      generatedRequest.fuzzGeneratedRequest,
 					HttpClient:         analyzerClient,
 					ResponseTimeDelay:  duration,
 					AnalyzerParameters: request.Analyzer.Parameters,
 				})
 				if err != nil {
-					gologger.Warning().Msgf("Could not analyze response: %v\n", err)
+					request.GetLogger().Warning().Msgf("Could not analyze response: %v\n", err)
 				}
 				if analysisMatched {
 					finalEvent["analyzer_details"] = analysisDetails
@@ -1949,7 +1950,7 @@ func (request *Request) executeRequest(input *contextargs.Context, generatedRequ
 			}, backoffKey)
 		}
 		if event.CatchAll != nil && event.OperatorsResult != nil && catchall.Applies(request.options.TemplateInfo, request.CompiledOperators) && event.CatchAll() {
-			gologger.Verbose().Msgf("[%s] Dropped match on %s: the host serves this page for any missing path", request.options.TemplateID, formedURL)
+			request.GetLogger().Verbose().Msgf("[%s] Dropped match on %s: the host serves this page for any missing path", request.options.TemplateID, formedURL)
 			event.OperatorsResult = nil
 			event.Results = nil
 		}
@@ -2112,6 +2113,7 @@ func (request *Request) handleSignature(generatedRequest *generatedRequest) erro
 		var awsSigner signer.Signer
 		allvars := generators.MergeMaps(request.options.Options.Vars.AsMap(), generatedRequest.dynamicValues)
 		awsopts := signer.AWSOptions{
+			Logger:         request.GetLogger(),
 			AwsID:          types.ToString(allvars["aws-id"]),
 			AwsSecretToken: types.ToString(allvars["aws-secret"]),
 		}
@@ -2157,19 +2159,19 @@ func (request *Request) setCustomHeaders(req *generatedRequest) {
 // scan.
 func (request *Request) evaluateCustomHeaderValue(req *generatedRequest, value string) string {
 	values := generators.MergeMaps(req.dynamicValues, req.meta)
-	return evaluateCustomHeaderExpressions(request.options.TemplateID, value, values)
+	return evaluateCustomHeaderExpressions(request.options, value, values)
 }
 
 // evaluateCustomHeaderExpressions resolves helper expressions in a global custom
 // header string. Unsafe raw requests splice the -H line straight into the
 // request bytes, so they resolve it here instead of in setCustomHeaders.
-func evaluateCustomHeaderExpressions(templateID, value string, values map[string]interface{}) string {
+func evaluateCustomHeaderExpressions(options *protocols.ExecutorOptions, value string, values map[string]interface{}) string {
 	if !strings.Contains(value, marker.ParenthesisOpen) {
 		return value
 	}
 	evaluated, err := expressions.Evaluate(value, values)
 	if err != nil {
-		gologger.Debug().Msgf("[%s] could not evaluate custom header value %q: %s", templateID, value, err)
+		options.GetLogger().Debug().Msgf("[%s] could not evaluate custom header value %q: %s", options.TemplateID, value, err)
 		return value
 	}
 	return evaluated
@@ -2184,7 +2186,7 @@ func dumpResponse(event *output.InternalWrappedEvent, request *Request, redirect
 
 		var highlightedResult string
 		if (responseContentType == "application/octet-stream" || responseContentType == "application/x-www-form-urlencoded") && responsehighlighter.HasBinaryContent(response) {
-			highlightedResult = createResponseHexDump(event, response, cliOptions.NoColor)
+			highlightedResult = request.createResponseHexDump(event, response, cliOptions.NoColor)
 		} else {
 			highlightedResult = responsehighlighter.Highlight(event.OperatorsResult, response, cliOptions.NoColor, false)
 		}
@@ -2195,7 +2197,7 @@ func dumpResponse(event *output.InternalWrappedEvent, request *Request, redirect
 		}
 		fMsg := fmt.Sprintf(msg, request.options.TemplateID, formedURL, highlightedResult)
 		if cliOptions.Debug || cliOptions.DebugResponse {
-			gologger.Debug().Msg(fMsg)
+			request.GetLogger().Debug().Msg(fMsg)
 		}
 		if cliOptions.StoreResponse {
 			request.options.Output.WriteStoreDebugData(reqURL, request.options.TemplateID, request.Type().String(), fMsg)
@@ -2203,7 +2205,7 @@ func dumpResponse(event *output.InternalWrappedEvent, request *Request, redirect
 	}
 }
 
-func createResponseHexDump(event *output.InternalWrappedEvent, response string, noColor bool) string {
+func (request *Request) createResponseHexDump(event *output.InternalWrappedEvent, response string, noColor bool) string {
 	CRLFs := CRLF + CRLF
 	headerEndIndex := strings.Index(response, CRLFs) + len(CRLFs)
 	if headerEndIndex > 0 {
@@ -2211,10 +2213,10 @@ func createResponseHexDump(event *output.InternalWrappedEvent, response string, 
 		responseBodyHexDump := hex.Dump([]byte(response[headerEndIndex:]))
 
 		highlightedHeaders := responsehighlighter.Highlight(event.OperatorsResult, headers, noColor, false)
-		highlightedResponse := responsehighlighter.Highlight(event.OperatorsResult, responseBodyHexDump, noColor, true)
+		highlightedResponse := responsehighlighter.HighlightWithLogger(event.OperatorsResult, responseBodyHexDump, noColor, true, request.GetLogger())
 		return fmt.Sprintf("%s\n%s", highlightedHeaders, highlightedResponse)
 	} else {
-		return responsehighlighter.Highlight(event.OperatorsResult, hex.Dump([]byte(response)), noColor, true)
+		return responsehighlighter.HighlightWithLogger(event.OperatorsResult, hex.Dump([]byte(response)), noColor, true, request.GetLogger())
 	}
 }
 

@@ -15,6 +15,7 @@ import (
 // It also allows Configuration of such requirements. This is used
 // for per-module like separate headless concurrency etc.
 type WorkPool struct {
+	logger   *gologger.Logger
 	Headless *syncutil.AdaptiveWaitGroup
 	Default  *syncutil.AdaptiveWaitGroup
 	config   WorkPoolConfig
@@ -35,6 +36,7 @@ type WorkPoolConfig struct {
 // NewWorkPool returns a new WorkPool instance
 func NewWorkPool(config WorkPoolConfig) *WorkPool {
 	return &WorkPool{
+		logger:   gologger.DefaultLogger,
 		config:   config,
 		Headless: newPool(config.HeadlessTypeConcurrency),
 		Default:  newPool(config.TypeConcurrency),
@@ -103,14 +105,14 @@ func (w *WorkPool) Refresh(ctx context.Context) {
 	if w.Default.Size != typeConcurrency {
 		err := w.Default.Resize(ctx, typeConcurrency)
 		if err != nil {
-			gologger.Warning().Msgf("Could not resize workpool: %s\n", err)
+			w.logger.Warning().Msgf("Could not resize workpool: %s\n", err)
 		}
 	}
 
 	if w.Headless.Size != headlessTypeConcurrency {
 		err := w.Headless.Resize(ctx, headlessTypeConcurrency)
 		if err != nil {
-			gologger.Warning().Msgf("Could not resize workpool: %s\n", err)
+			w.logger.Warning().Msgf("Could not resize workpool: %s\n", err)
 		}
 	}
 }

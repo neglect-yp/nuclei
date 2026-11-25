@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
 )
 
@@ -22,7 +21,7 @@ func (p *Page) routingRuleHandler(httpClient *http.Client) func(ctx *rod.Hijack)
 		// drop the modification rules and, with -cdp-endpoint (no headless
 		// proxy), the network policy's dial-time address checks.
 		if req.URL == nil {
-			gologger.Verbose().Msgf("headless: failed %s request with a URL that net/url cannot parse", req.Method)
+			p.options.Options.GetLogger().Verbose().Msgf("headless: failed %s request with a URL that net/url cannot parse", req.Method)
 			ctx.Response.Fail(proto.NetworkErrorReasonFailed)
 
 			return
@@ -66,7 +65,7 @@ func (p *Page) routingRuleHandler(httpClient *http.Client) func(ctx *rod.Hijack)
 
 		// perform the request
 		if err := ctx.LoadResponse(httpClient, true); err != nil {
-			gologger.Verbose().Msgf("headless: failed to load response for %s: %s", req.URL, err)
+			p.options.Options.GetLogger().Verbose().Msgf("headless: failed to load response for %s: %s", req.URL, err)
 		}
 
 		if !p.options.DisableCookie {

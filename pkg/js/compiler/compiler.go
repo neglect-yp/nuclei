@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/projectdiscovery/goja"
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/utils/errkit"
 	stringsutil "github.com/projectdiscovery/utils/strings"
 
@@ -30,6 +31,7 @@ func New() *Compiler {
 
 // ExecuteOptions provides options for executing a script.
 type ExecuteOptions struct {
+	Logger *gologger.Logger
 	// ExecutionId is the id of the execution
 	ExecutionId string
 

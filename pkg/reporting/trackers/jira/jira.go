@@ -11,6 +11,7 @@ import (
 
 	"github.com/andygrunwald/go-jira"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/trivago/tgo/tcontainer"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -174,6 +175,7 @@ type Integration struct {
 
 // Options contains the configuration options for jira client
 type Options struct {
+	Logger *gologger.Logger `yaml:"-" json:"-"`
 	// Cloud value (optional) is set to true when Jira cloud is used
 	Cloud bool `yaml:"cloud" json:"cloud"`
 	// UpdateExisting value (optional) if true, the existing opened issue is updated
@@ -288,7 +290,7 @@ func (i *Integration) CreateNewIssue(event *output.ResultEvent) (*filters.Create
 				// Evaluate template or handle legacy $variable syntax
 				evaluatedValue, err := i.evaluateCustomFieldValue(fmtNestedValue, templateCtx, event)
 				if err != nil {
-					gologger.Warning().Msgf("Failed to evaluate template for field %s.%s: %v", name, nestedName, err)
+					logging.OrDefault(i.options.Logger).Warning().Msgf("Failed to evaluate template for field %s.%s: %v", name, nestedName, err)
 					evaluatedValue = fmtNestedValue // fallback to original value
 				}
 
@@ -521,7 +523,7 @@ func (i *Integration) FindExistingIssue(event *output.ResultEvent, useStatus boo
 	case 1:
 		return issues[0], nil
 	default:
-		gologger.Warning().Msgf("Discovered multiple opened issues %s for the host %s: The issue [%s] will be updated.", template, event.Host, issues[0].ID)
+		logging.OrDefault(i.options.Logger).Warning().Msgf("Discovered multiple opened issues %s for the host %s: The issue [%s] will be updated.", template, event.Host, issues[0].ID)
 		return issues[0], nil
 	}
 }

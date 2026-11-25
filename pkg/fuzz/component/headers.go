@@ -4,6 +4,7 @@ import (
 	"context"
 	"strings"
 
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/dataformat"
 	"github.com/projectdiscovery/retryablehttp-go"
 )
@@ -31,7 +32,7 @@ func (q *Header) Name() string {
 // parsed component
 func (q *Header) Parse(req *retryablehttp.Request) (bool, error) {
 	q.req = req
-	q.value = NewValue("")
+	q.value = newValue("", logging.FromContext(req.Context()))
 
 	parsedHeaders := make(map[string]interface{})
 	for key, value := range req.Header {

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/http/httpclientpool"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
 	"github.com/projectdiscovery/utils/errkit"
@@ -49,7 +48,7 @@ func (request *Request) replayRequest(dumpedRequest, body []byte, formedURL stri
 	dump := bufio.NewReader(bytes.NewReader(dumpedRequest))
 	replay, err := http.ReadRequest(dump)
 	if err != nil {
-		gologger.Debug().Msgf("[%s] could not parse request to replay: %s", request.options.TemplateID, err)
+		request.GetLogger().Debug().Msgf("[%s] could not parse request to replay: %s", request.options.TemplateID, err)
 		return
 	}
 	if body != nil {
@@ -67,7 +66,7 @@ func (request *Request) replayRequest(dumpedRequest, body []byte, formedURL stri
 	}
 	target, err := url.Parse(formedURL)
 	if err != nil {
-		gologger.Debug().Msgf("[%s] could not parse URL to replay %q: %s", request.options.TemplateID, formedURL, err)
+		request.GetLogger().Debug().Msgf("[%s] could not parse URL to replay %q: %s", request.options.TemplateID, formedURL, err)
 		return
 	}
 	replay.RequestURI = ""
@@ -75,7 +74,7 @@ func (request *Request) replayRequest(dumpedRequest, body []byte, formedURL stri
 
 	resp, err := request.replayClient.Do(replay)
 	if err != nil {
-		gologger.Debug().Msgf("[%s] could not replay %s through %s: %s", request.options.TemplateID, formedURL, request.options.Options.ReplayProxy, err)
+		request.GetLogger().Debug().Msgf("[%s] could not replay %s through %s: %s", request.options.TemplateID, formedURL, request.options.Options.ReplayProxy, err)
 		return
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)

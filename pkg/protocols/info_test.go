@@ -1,17 +1,22 @@
 package protocols
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/formatter"
+	"github.com/projectdiscovery/gologger/levels"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
+	"github.com/projectdiscovery/nuclei/v3/pkg/utils"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRenderInfoLeavesStaticInfoAlone(t *testing.T) {
 	result := &output.ResultEvent{Host: "example.com", Info: model.Info{Description: "Redis is exposed"}}
 
-	renderInfo([]*output.ResultEvent{result}, map[string]interface{}{"host": "example.com"})
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, map[string]interface{}{"host": "example.com"})
 
 	require.Equal(t, "Redis is exposed", result.Info.Description)
 	require.Nil(t, result.TemplateInfo)
@@ -22,7 +27,7 @@ func TestRenderInfoLeavesStaticInfoAlone(t *testing.T) {
 func TestRenderInfoLeavesUnfilledBracesStatic(t *testing.T) {
 	result := &output.ResultEvent{Host: "example.com", Info: model.Info{Description: "Send {{7*7}} or {{config}} in the name parameter"}}
 
-	renderInfo([]*output.ResultEvent{result}, map[string]interface{}{})
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, map[string]interface{}{})
 
 	require.Equal(t, "Send {{7*7}} or {{config}} in the name parameter", result.Info.Description)
 	require.Nil(t, result.TemplateInfo)
@@ -43,7 +48,7 @@ func TestRenderInfoFillsResultAndEventValues(t *testing.T) {
 	// The event's host is the raw input, while the output reports the hostname.
 	data := map[string]interface{}{"host": "redis://example.com:6379", "version": "7.2.4", "password": "admin"}
 
-	renderInfo([]*output.ResultEvent{result}, data)
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, data)
 
 	require.Equal(t, "auth on example.com:6379, version 7.2.4", result.Info.Description)
 	require.Equal(t, "ADMIN", result.Info.Impact)
@@ -63,7 +68,7 @@ func TestRenderInfoFillsNestedAndMultilinePlaceholders(t *testing.T) {
 		Remediation: "Upgrade from {{join(\", \",\n  versions)}}",
 	}}
 
-	renderInfo([]*output.ResultEvent{result}, map[string]interface{}{
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, map[string]interface{}{
 		"username": "admin", "password": "secret", "versions": []string{"7.2.4", "6.0.9"},
 	})
 
@@ -79,7 +84,7 @@ func TestRenderInfoFillsBracketedNamesAndGeneralMarkers(t *testing.T) {
 		Impact:      "default login §username§ accepted",
 	}}
 
-	renderInfo([]*output.ResultEvent{result}, map[string]interface{}{"username": "admin"})
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, map[string]interface{}{"username": "admin"})
 
 	require.Equal(t, "AUTH matched", result.Info.Description)
 	require.Equal(t, "default login admin accepted", result.Info.Impact)
@@ -92,7 +97,7 @@ func TestRenderInfoKeepsAFieldWithAFailingExpression(t *testing.T) {
 		Impact:      "{{host}} is exposed",
 	}}
 
-	renderInfo([]*output.ResultEvent{result}, map[string]interface{}{})
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, map[string]interface{}{})
 
 	require.Equal(t, "{{host}} {{to_upper(missing)}}", result.Info.Description)
 	require.Equal(t, "example.com is exposed", result.Info.Impact)
@@ -104,7 +109,7 @@ func TestRenderInfoKeepsAFieldWithAFailingExpression(t *testing.T) {
 func TestRenderInfoFillsGlobalMatcherInfoFromResultFieldsOnly(t *testing.T) {
 	result := &output.ResultEvent{Host: "example.com", Info: model.Info{Description: "Leaked {{token}} on {{host}}"}}
 
-	renderInfo([]*output.ResultEvent{result}, map[string]interface{}{"global-matchers": true, "token": "origin-template-payload"})
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, map[string]interface{}{"global-matchers": true, "token": "origin-template-payload"})
 
 	require.Equal(t, "Leaked {{token}} on example.com", result.Info.Description)
 }
@@ -113,8 +118,18 @@ func TestRenderInfoFillsGlobalMatcherInfoFromResultFieldsOnly(t *testing.T) {
 func TestRenderInfoDeniesNetworkHelpers(t *testing.T) {
 	result := &output.ResultEvent{Host: "example.com", Info: model.Info{Description: "{{host}} resolves to {{resolve(host)}}"}}
 
-	renderInfo([]*output.ResultEvent{result}, map[string]interface{}{})
+	renderInfo(gologger.DefaultLogger, []*output.ResultEvent{result}, map[string]interface{}{})
 
 	require.Equal(t, "{{host}} resolves to {{resolve(host)}}", result.Info.Description)
 	require.Nil(t, result.TemplateInfo)
+}
+
+func TestRenderInfoUsesLoggerForPrintDebug(t *testing.T) {
+	var logs bytes.Buffer
+	logger := &gologger.Logger{}
+	logger.SetFormatter(formatter.NewCLI(true))
+	logger.SetWriter(&utils.CaptureWriter{Buffer: &logs})
+	logger.SetMaxLevel(levels.LevelDebug)
+	require.Equal(t, "true", renderInfoText(logger, "fixture", "{{print_debug('render')}}", nil))
+	require.Contains(t, logs.String(), "print_debug value: render")
 }

@@ -25,12 +25,12 @@ var (
 
 // getCache returns the shared cache. The first call, and the first after
 // Close, loads it from the snapshot that Close saved.
-func getCache() *cache.Transport {
+func getCache(logger *gologger.Logger) *cache.Transport {
 	cacheMu.Lock()
 
 	defer cacheMu.Unlock()
 	if shared == nil {
-		shared = openCache(snapshotPath())
+		shared = openCache(logger, snapshotPath())
 	}
 
 	return shared
@@ -39,6 +39,10 @@ func getCache() *cache.Transport {
 // Close saves the shared cache to its snapshot and releases it. Safe if the
 // cache was never opened.
 func Close() {
+	CloseWithLogger(gologger.DefaultLogger)
+}
+
+func CloseWithLogger(logger *gologger.Logger) {
 	cacheMu.Lock()
 	defer cacheMu.Unlock()
 
@@ -47,11 +51,11 @@ func Close() {
 	}
 
 	if err := saveSnapshot(shared, snapshotPath()); err != nil {
-		gologger.Warning().Msgf("HTTP cache: could not save snapshot: %s", err)
+		logger.Warning().Msgf("HTTP cache: could not save snapshot: %s", err)
 	}
 
 	stats := shared.Stats()
-	gologger.Verbose().Msgf(
+	logger.Verbose().Msgf(
 		"HTTP cache: %d hits, %d revalidated, %d misses, %d bypassed, %d stored or loaded, %d evicted, %d dropped",
 		stats.Hits, stats.Revalidations, stats.Misses, stats.Bypasses, stats.Stores, stats.Evictions, stats.Drops)
 
@@ -63,7 +67,11 @@ func Close() {
 //
 // This is designed to be used with retryablehttp's WrapTransport option.
 func NewTransportWrapper() func(http.RoundTripper) http.RoundTripper {
-	c := getCache()
+	return NewTransportWrapperWithLogger(gologger.DefaultLogger)
+}
+
+func NewTransportWrapperWithLogger(logger *gologger.Logger) func(http.RoundTripper) http.RoundTripper {
+	c := getCache(logger)
 
 	// Within one engine, the per-host clients' transports have the same TLS,
 	// proxy, and compression settings. Nuclei accepts that the clients
@@ -218,7 +226,7 @@ func snapshotPath() string {
 // The cache validates each loaded response with the origin before its first
 // use. Requests go through the Transports that WithNext returns, never through
 // the one openCache returns, so its next RoundTripper doesn't matter.
-func openCache(path string) *cache.Transport {
+func openCache(logger *gologger.Logger, path string) *cache.Transport {
 	c, err := cache.New(nil)
 	if err != nil {
 		// New fails only for invalid options, and none are passed.
@@ -226,10 +234,10 @@ func openCache(path string) *cache.Transport {
 	}
 
 	if err := loadSnapshot(c, path); err != nil {
-		gologger.Warning().Msgf("HTTP cache: could not load snapshot %q: %s", path, err)
+		logger.Warning().Msgf("HTTP cache: could not load snapshot %q: %s", path, err)
 	}
 
-	gologger.Verbose().Msgf("HTTP cache initialized (snapshot %q)", path)
+	logger.Verbose().Msgf("HTTP cache initialized (snapshot %q)", path)
 
 	return c
 }

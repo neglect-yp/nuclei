@@ -153,7 +153,7 @@ func (m *MultiProtocol) ExecuteWithResults(ctx *scan.ScanContext) error {
 				return ctxErr
 			}
 			// always log errors
-			utils.LogRequestError(ctx, m.options.TemplateID, err)
+			utils.LogRequestErrorWithLogger(ctx, m.options.TemplateID, err, m.options.GetLogger())
 		}
 	}
 

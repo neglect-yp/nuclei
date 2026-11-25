@@ -12,7 +12,6 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
@@ -177,7 +176,7 @@ func (request *Request) executeRequestWithPayloads(input *contextargs.Context, p
 	var page *engine.Page
 	defer func() {
 		if closeErr := instance.CloseWithPage(page); closeErr != nil {
-			gologger.Warning().Msgf("Could not close headless browser instance: %s", closeErr)
+			request.GetLogger().Warning().Msgf("Could not close headless browser instance: %s", closeErr)
 		}
 	}()
 	instance.SetInteractsh(request.options.Interactsh)
@@ -199,11 +198,11 @@ func (request *Request) executeRequestWithPayloads(input *contextargs.Context, p
 
 	request.options.Output.Request(request.options.TemplatePath, input.MetaInput.Input, request.Type().String(), nil)
 	request.options.Progress.IncrementRequests()
-	gologger.Verbose().Msgf("Sent Headless request to %s", navigatedURL)
+	request.GetLogger().Verbose().Msgf("Sent Headless request to %s", navigatedURL)
 
 	reqBuilder := &strings.Builder{}
 	if request.options.Options.Debug || request.options.Options.DebugRequests || request.options.Options.DebugResponse {
-		gologger.Info().Msgf("[%s] Dumped Headless request for %s", request.options.TemplateID, navigatedURL)
+		request.GetLogger().Info().Msgf("[%s] Dumped Headless request for %s", request.options.TemplateID, navigatedURL)
 
 		for _, act := range request.Steps {
 			if act.ActionType.ActionType == engine.ActionNavigate {
@@ -218,7 +217,7 @@ func (request *Request) executeRequestWithPayloads(input *contextargs.Context, p
 				_, _ = fmt.Fprintf(reqBuilder, "\t%s\n", actStepStr)
 			}
 		}
-		gologger.Debug().Msg(reqBuilder.String())
+		request.GetLogger().Debug().Msg(reqBuilder.String())
 	}
 
 	var responseBody string
@@ -287,7 +286,7 @@ func dumpResponse(event *output.InternalWrappedEvent, requestOptions *protocols.
 		msg := fmt.Sprintf("[%s] Dumped Headless response for %s\n\n", requestOptions.TemplateID, input)
 		if requestOptions.Options.Debug || requestOptions.Options.DebugResponse {
 			resp := responsehighlighter.Highlight(event.OperatorsResult, responseBody, requestOptions.Options.NoColor, false)
-			gologger.Debug().Msgf("%s%s", msg, resp)
+			requestOptions.GetLogger().Debug().Msgf("%s%s", msg, resp)
 		}
 		if requestOptions.Options.StoreResponse {
 			requestOptions.Output.WriteStoreDebugData(input, requestOptions.TemplateID, "headless", fmt.Sprintf("%s%s", msg, responseBody))

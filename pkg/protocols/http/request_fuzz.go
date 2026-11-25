@@ -13,7 +13,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/analyzers"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
@@ -46,9 +46,9 @@ func (request *Request) executeFuzzingRule(input *contextargs.Context, previous 
 	if !request.ShouldFuzzTarget(input) {
 		urlx, _ := input.MetaInput.URL()
 		if urlx != nil {
-			gologger.Verbose().Msgf("[%s] fuzz: target(%s) not applicable for fuzzing\n", request.options.TemplateID, urlx.String())
+			request.GetLogger().Verbose().Msgf("[%s] fuzz: target(%s) not applicable for fuzzing\n", request.options.TemplateID, urlx.String())
 		} else {
-			gologger.Verbose().Msgf("[%s] fuzz: target(%s) not applicable for fuzzing\n", request.options.TemplateID, input.MetaInput.Input)
+			request.GetLogger().Verbose().Msgf("[%s] fuzz: target(%s) not applicable for fuzzing\n", request.options.TemplateID, input.MetaInput.Input)
 		}
 		return nil
 	}
@@ -72,14 +72,14 @@ func (request *Request) executeFuzzingRule(input *contextargs.Context, previous 
 			// in case of any error, return it
 			if fuzz.IsErrRuleNotApplicable(err) {
 				// log and fail silently
-				gologger.Verbose().Msgf("[%s] fuzz: %s\n", request.options.TemplateID, err)
+				request.GetLogger().Verbose().Msgf("[%s] fuzz: %s\n", request.options.TemplateID, err)
 				return nil
 			}
 
 			if errors.Is(err, ErrMissingVars) || errors.Is(err, hosterrorscache.ErrUnresponsiveHost) {
 				return err
 			}
-			gologger.Verbose().Msgf("[%s] fuzz: payload request execution failed: %s\n", request.options.TemplateID, err)
+			request.GetLogger().Verbose().Msgf("[%s] fuzz: payload request execution failed: %s\n", request.options.TemplateID, err)
 		}
 		return nil
 	}
@@ -106,14 +106,14 @@ func (request *Request) executeFuzzingRule(input *contextargs.Context, previous 
 		// in case of any error, return it
 		if fuzz.IsErrRuleNotApplicable(err) {
 			// log and fail silently
-			gologger.Verbose().Msgf("[%s] fuzz: %s\n", request.options.TemplateID, err)
+			request.GetLogger().Verbose().Msgf("[%s] fuzz: %s\n", request.options.TemplateID, err)
 			return nil
 		}
 
 		if errors.Is(err, ErrMissingVars) || errors.Is(err, hosterrorscache.ErrUnresponsiveHost) {
 			return err
 		}
-		gologger.Verbose().Msgf("[%s] fuzz: payload request execution failed: %s\n", request.options.TemplateID, err)
+		request.GetLogger().Verbose().Msgf("[%s] fuzz: payload request execution failed: %s\n", request.options.TemplateID, err)
 	}
 	return nil
 }
@@ -155,11 +155,11 @@ func (request *Request) executeAllFuzzingRules(input *contextargs.Context, value
 				return keepGoing
 			},
 			Values:      values,
-			BaseRequest: baseRequest.Clone(context.TODO()),
+			BaseRequest: baseRequest.Clone(logging.WithLogger(context.TODO(), request.GetLogger())),
 		}
 		if request.Analyzer != nil {
 			analyzer := analyzers.GetAnalyzer(request.Analyzer.Name)
-			input.ApplyPayloadInitialTransformation = analyzer.ApplyInitialTransformation
+			input.ApplyPayloadInitialTransformation = analyzers.InitialTransformation(analyzer, request.GetLogger())
 			input.AnalyzerParams = request.Analyzer.Parameters
 		}
 		err := rule.Execute(input)
@@ -171,7 +171,7 @@ func (request *Request) executeAllFuzzingRules(input *contextargs.Context, value
 			continue
 		}
 		if fuzz.IsErrRuleNotApplicable(err) {
-			gologger.Verbose().Msgf("[%s] fuzz: %s\n", request.options.TemplateID, err)
+			request.GetLogger().Verbose().Msgf("[%s] fuzz: %s\n", request.options.TemplateID, err)
 			continue
 		}
 		if err == types.ErrNoMoreRequests {
@@ -252,7 +252,7 @@ func (request *Request) executeGeneratedFuzzingRequest(gr fuzz.GeneratedRequest,
 		return false, requestErr
 	}
 	if requestErr != nil {
-		gologger.Verbose().Msgf("[%s] Error occurred in request: %s\n", request.options.TemplateID, requestErr)
+		request.GetLogger().Verbose().Msgf("[%s] Error occurred in request: %s\n", request.options.TemplateID, requestErr)
 	}
 	if request.options.HostErrorsCache != nil {
 		request.options.HostErrorsCache.MarkFailedOrRemove(request.options.ProtocolType.String(), input, requestErr)
@@ -280,12 +280,12 @@ func (request *Request) ShouldFuzzTarget(input *contextargs.Context) bool {
 		dataMap := request.filterDataMap(input)
 		// dump if svd is enabled
 		if request.options.Options.ShowVarDump {
-			gologger.Debug().Msgf("Fuzz Filter Variables: \n%s\n", vardump.DumpVariables(dataMap))
+			request.GetLogger().Debug().Msgf("Fuzz Filter Variables: \n%s\n", vardump.DumpVariables(dataMap))
 		}
 		isMatch, _ := request.Match(dataMap, filter)
 		status = append(status, isMatch)
 		if request.options.Options.MatcherStatus {
-			gologger.Debug().Msgf("[%s] [%s] Filter => %s : %v", input.MetaInput.Target(), request.options.TemplateID, operators.GetMatcherName(filter, index), isMatch)
+			request.GetLogger().Debug().Msgf("[%s] [%s] Filter => %s : %v", input.MetaInput.Target(), request.options.TemplateID, operators.GetMatcherName(filter, index), isMatch)
 		}
 	}
 	if len(status) == 0 {
@@ -298,7 +298,7 @@ func (request *Request) ShouldFuzzTarget(input *contextargs.Context) bool {
 		matched = operators.EvalBoolSlice(status, false)
 	}
 	if request.options.Options.MatcherStatus {
-		gologger.Debug().Msgf("[%s] [%s] Final Filter Status =>  %v", input.MetaInput.Target(), request.options.TemplateID, matched)
+		request.GetLogger().Debug().Msgf("[%s] [%s] Final Filter Status =>  %v", input.MetaInput.Target(), request.options.TemplateID, matched)
 	}
 	return matched
 }

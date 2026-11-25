@@ -15,9 +15,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"go.uber.org/multierr"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
@@ -137,7 +137,7 @@ func (request *Request) ExecuteWithResults(target *contextargs.Context, metadata
 	}
 	if err != nil {
 		// TODO: replace this after scan context is implemented
-		gologger.Verbose().Msgf("[%v] got errors while checking open ports: %s\n", request.options.TemplateID, err)
+		request.GetLogger().Verbose().Msgf("[%v] got errors while checking open ports: %s\n", request.options.TemplateID, err)
 	}
 
 	// stop at first match if requested
@@ -168,7 +168,7 @@ func (request *Request) ExecuteWithResults(target *contextargs.Context, metadata
 		// and it is ignored if input port is not standard http(s) ports like 80,8080,8081 etc
 		// idea is to reduce redundant dials to http ports
 		if err := input.UseNetworkPort(port, request.ExcludePorts); err != nil {
-			gologger.Debug().Msgf("Could not network port from constants: %s\n", err)
+			request.GetLogger().Debug().Msgf("Could not network port from constants: %s\n", err)
 		}
 
 		started++
@@ -289,7 +289,7 @@ func (request *Request) executeOnTarget(input *contextargs.Context, visited maps
 			err = addressErr
 			failErr = addressErr
 			outputEvent := request.responseToDSLMap("", "", "", address, "")
-			gologger.Warning().Msgf("[%v] Could not make network request for (%s) : %s\n", request.options.TemplateID, actualAddress, err)
+			request.GetLogger().Warning().Msgf("[%v] Could not make network request for (%s) : %s\n", request.options.TemplateID, actualAddress, err)
 
 			callback(&output.InternalWrappedEvent{InternalEvent: outputEvent})
 		default:
@@ -492,7 +492,7 @@ func (request *Request) executeRequestWithPayloads(variables map[string]interfac
 	interimValues := generators.MergeMaps(variables, payloads)
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("Network Protocol request variables: %s\n", vardump.DumpVariables(interimValues))
+		request.GetLogger().Debug().Msgf("Network Protocol request variables: %s\n", vardump.DumpVariables(interimValues))
 	}
 
 	inputEvents := make(map[string]interface{})
@@ -518,7 +518,7 @@ func (request *Request) executeRequestWithPayloads(variables map[string]interfac
 		interactshURLs = result.InteractURLs
 
 		if err := expressions.ContainsUnresolvedVariables(data); err != nil {
-			gologger.Warning().Msgf("[%s] Could not make network request for %s: %v\n", request.options.TemplateID, actualAddress, err)
+			request.GetLogger().Warning().Msgf("[%s] Could not make network request for %s: %v\n", request.options.TemplateID, actualAddress, err)
 			// Unresolved variables are a skip, not an error, as in http.
 			request.options.Progress.IncrementRequests()
 
@@ -574,18 +574,18 @@ func (request *Request) executeRequestWithPayloads(variables map[string]interfac
 		requestBytes := []byte(reqBuilder.String())
 		msg := fmt.Sprintf("[%s] Dumped Network request for %s\n%s", request.options.TemplateID, actualAddress, hex.Dump(requestBytes))
 		if request.options.Options.Debug || request.options.Options.DebugRequests {
-			gologger.Info().Str("address", actualAddress).Msg(msg)
+			request.GetLogger().Info().Str("address", actualAddress).Msg(msg)
 		}
 		if request.options.Options.StoreResponse {
 			request.options.Output.WriteStoreDebugData(address, request.options.TemplateID, request.Type().String(), msg)
 		}
 		if request.options.Options.VerboseVerbose {
-			gologger.Print().Msgf("\nCompact HEX view:\n%s", hex.EncodeToString(requestBytes))
+			logging.Print(request.GetLogger()).Msgf("\nCompact HEX view:\n%s", hex.EncodeToString(requestBytes))
 		}
 	}
 
 	request.options.Output.Request(request.options.TemplatePath, actualAddress, request.Type().String(), err)
-	gologger.Verbose().Msgf("Sent TCP request to %s", actualAddress)
+	request.GetLogger().Verbose().Msgf("Sent TCP request to %s", actualAddress)
 
 	bufferSize := 1024
 	if request.ReadSize != 0 {
@@ -600,7 +600,7 @@ func (request *Request) executeRequestWithPayloads(variables map[string]interfac
 		// The final read is optional (#4737), so its end is not an error. It
 		// writes no trace entry: that would put an error in -elog and in the
 		// -hps error table for a request that may have matched.
-		gologger.Verbose().Msgf("could not read more data from %s: %s", actualAddress, readErr)
+		request.GetLogger().Verbose().Msgf("could not read more data from %s: %s", actualAddress, readErr)
 	}
 	responseBuilder.Write(final)
 
@@ -664,21 +664,21 @@ func dumpResponse(event *output.InternalWrappedEvent, request *Request, response
 	cliOptions := request.options.Options
 	if cliOptions.Debug || cliOptions.DebugResponse || cliOptions.StoreResponse {
 		requestBytes := []byte(response)
-		highlightedResponse := responsehighlighter.Highlight(event.OperatorsResult, hex.Dump(requestBytes), cliOptions.NoColor, true)
+		highlightedResponse := responsehighlighter.HighlightWithLogger(event.OperatorsResult, hex.Dump(requestBytes), cliOptions.NoColor, true, request.GetLogger())
 		msg := fmt.Sprintf("[%s] Dumped Network response for %s\n\n", request.options.TemplateID, actualAddress)
 		if cliOptions.Debug || cliOptions.DebugResponse {
-			gologger.Debug().Msg(fmt.Sprintf("%s%s", msg, highlightedResponse))
+			request.GetLogger().Debug().Msg(fmt.Sprintf("%s%s", msg, highlightedResponse))
 		}
 		if cliOptions.StoreResponse {
 			request.options.Output.WriteStoreDebugData(address, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s%s", msg, hex.Dump(requestBytes)))
 		}
 		if cliOptions.VerboseVerbose {
-			displayCompactHexView(event, response, cliOptions.NoColor)
+			request.displayCompactHexView(event, response, cliOptions.NoColor)
 		}
 	}
 }
 
-func displayCompactHexView(event *output.InternalWrappedEvent, response string, noColor bool) {
+func (request *Request) displayCompactHexView(event *output.InternalWrappedEvent, response string, noColor bool) {
 	operatorsResult := event.OperatorsResult
 	if operatorsResult != nil {
 		var allMatches []string
@@ -688,7 +688,7 @@ func displayCompactHexView(event *output.InternalWrappedEvent, response string, 
 			}
 		}
 		tempOperatorResult := &operators.Result{Matches: map[string][]string{"matchesInHex": allMatches}}
-		gologger.Print().Msgf("\nCompact HEX view:\n%s", responsehighlighter.Highlight(tempOperatorResult, hex.EncodeToString([]byte(response)), noColor, false))
+		logging.Print(request.GetLogger()).Msgf("\nCompact HEX view:\n%s", responsehighlighter.Highlight(tempOperatorResult, hex.EncodeToString([]byte(response)), noColor, false))
 	}
 }
 

@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils/yaml"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/js/compiler"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model/types/severity"
@@ -362,7 +361,7 @@ func parseCachedTemplate(cached *Template, data []byte, preprocessor Preprocesso
 	}
 
 	if !template.Verified && len(template.Workflows) == 0 && config.DefaultConfig.LogAllEvents {
-		gologger.DefaultLogger.Print().Msgf("[%v] Template %s is not signed or tampered\n", aurora.Yellow("WRN").String(), template.ID)
+		options.GetLogger().Print().Msgf("[%v] Template %s is not signed or tampered\n", aurora.Yellow("WRN").String(), template.ID)
 	}
 	return template, cacheableTemplate, nil
 }
@@ -725,7 +724,7 @@ func parseTemplateFromData(data []byte, preprocessor Preprocessor, options *prot
 		}
 		if !template.Verified && len(template.Workflows) == 0 {
 			if config.DefaultConfig.LogAllEvents {
-				gologger.DefaultLogger.Print().Msgf("[%v] Template %s is not signed or tampered\n", aurora.Yellow("WRN").String(), template.ID)
+				options.GetLogger().Print().Msgf("[%v] Template %s is not signed or tampered\n", aurora.Yellow("WRN").String(), template.ID)
 			}
 		}
 		return template, cacheableTemplate, nil
@@ -761,7 +760,7 @@ func parseTemplateFromData(data []byte, preprocessor Preprocessor, options *prot
 	if !template.Verified && len(template.Workflows) == 0 {
 		// workflows are not signed by default
 		if config.DefaultConfig.LogAllEvents {
-			gologger.DefaultLogger.Print().Msgf("[%v] Template %s is not signed or tampered\n", aurora.Yellow("WRN").String(), template.ID)
+			options.GetLogger().Print().Msgf("[%v] Template %s is not signed or tampered\n", aurora.Yellow("WRN").String(), template.ID)
 		}
 	}
 
@@ -928,7 +927,7 @@ func applyTemplateVerification(template *Template, data []byte) {
 	for _, verifier = range signer.DefaultTemplateVerifiers {
 		template.Verified, _ = verifier.Verify(data, template)
 		if config.DefaultConfig.LogAllEvents {
-			gologger.Verbose().Msgf("template %v verified by %s : %v", template.ID, verifier.Identifier(), template.Verified)
+			template.Options.GetLogger().Verbose().Msgf("template %v verified by %s : %v", template.ID, verifier.Identifier(), template.Verified)
 		}
 
 		if template.Verified {

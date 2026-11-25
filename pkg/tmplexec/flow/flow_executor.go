@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 
 	"github.com/projectdiscovery/goja"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/scan"
@@ -248,6 +249,7 @@ func (f *FlowExecutor) ExecuteWithResults(ctx *scan.ScanContext) error {
 			_ = runtime.GlobalObject().Delete(proto)
 		}
 		runtime.RemoveContextValue("executionId")
+		runtime.RemoveContextValue("ctx")
 	}()
 
 	// TODO(dwisiswant0): remove this once we get the RCA.
@@ -288,6 +290,7 @@ func (f *FlowExecutor) ExecuteWithResults(ctx *scan.ScanContext) error {
 		return err
 	}
 
+	runtime.SetContextValue("ctx", logging.WithLogger(ctx.Context(), f.options.GetLogger()))
 	runtime.SetContextValue("executionId", f.options.Options.ExecutionId)
 
 	// pass flow and execute the js vm and handle errors

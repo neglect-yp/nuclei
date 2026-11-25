@@ -12,7 +12,6 @@ import (
 	"github.com/go-rod/rod/lib/launcher/flags"
 	"github.com/pkg/errors"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
 	fileutil "github.com/projectdiscovery/utils/file"
 	osutils "github.com/projectdiscovery/utils/os"
@@ -66,11 +65,7 @@ func New(options *types.Options) (*Browser, error) {
 
 		launcherURL, err = chromeLauncher.Launch()
 		if err != nil && !noSandbox && !chromeLauncher.Has(flags.NoSandbox) && isSandboxLaunchError(err) {
-			logger := options.Logger
-			if logger == nil {
-				logger = gologger.DefaultLogger
-			}
-			logger.Warning().Msgf("Could not start the browser with its sandbox, starting it without sandbox. To keep the sandbox, allow unprivileged user namespaces (for example sysctl kernel.unprivileged_userns_clone=1 or kernel.apparmor_restrict_unprivileged_userns=0) or in docker use a seccomp profile that allows user namespaces (for example --security-opt seccomp=unconfined): %s", sandboxLine(err.Error()))
+			options.GetLogger().Warning().Msgf("Could not start the browser with its sandbox, starting it without sandbox. To keep the sandbox, allow unprivileged user namespaces (for example sysctl kernel.unprivileged_userns_clone=1 or kernel.apparmor_restrict_unprivileged_userns=0) or in docker use a seccomp profile that allows user namespaces (for example --security-opt seccomp=unconfined): %s", sandboxLine(err.Error()))
 			chromeLauncher.Kill()
 			chromeLauncher, err = newChromeLauncher(options, dataStore, proxyServer.Addr(), true)
 			if err == nil {

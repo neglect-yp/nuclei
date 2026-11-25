@@ -360,7 +360,7 @@ func New(options *types.Options) (*Runner, error) {
 	// Creates the progress tracking object
 	var progressErr error
 	statsInterval := options.StatsInterval
-	runner.progress, progressErr = progress.NewStatsTicker(statsInterval, options.EnableProgressBar, options.StatsJSON, false, options.MetricsPort)
+	runner.progress, progressErr = progress.NewStatsTickerWithLogger(statsInterval, options.EnableProgressBar, options.StatsJSON, false, options.MetricsPort, options.GetLogger())
 	if progressErr != nil {
 		return nil, progressErr
 	}

@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/govaluate"
 
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/common/dsl"
@@ -30,7 +31,7 @@ func Eval(expression string, values map[string]interface{}) (interface{}, error)
 // The provided keys from finalValues will be used as variable names
 // for substitution inside the expression.
 func Evaluate(data string, base map[string]interface{}) (string, error) {
-	return evaluate(data, base, nil)
+	return evaluate(data, base, nil, nil)
 }
 
 // EvaluateByte checks if the match contains a dynamic variable, for each
@@ -40,13 +41,19 @@ func Evaluate(data string, base map[string]interface{}) (string, error) {
 // The provided keys from finalValues will be used as variable names
 // for substitution inside the expression.
 func EvaluateByte(data []byte, base map[string]interface{}) ([]byte, error) {
-	finalData, err := evaluate(string(data), base, nil)
+	finalData, err := evaluate(string(data), base, nil, nil)
 	return []byte(finalData), err
 }
 
 // EvaluateWithOptions renders expressions using the current scan's network policy.
 func EvaluateWithOptions(data string, base map[string]interface{}, options *types.Options) (string, error) {
-	return evaluate(data, base, options)
+	return evaluate(data, base, options, nil)
+}
+
+// EvaluateWithLogger renders text without scan authority and directs diagnostic
+// helpers to the caller's logger.
+func EvaluateWithLogger(data string, base map[string]interface{}, logger *gologger.Logger) (string, error) {
+	return evaluate(data, base, nil, logger)
 }
 
 // evaluate renders data, the template text, with base, the data values.
@@ -60,7 +67,7 @@ func EvaluateWithOptions(data string, base map[string]interface{}, options *type
 //
 // Expressions can be simple (base keys) or complex (helper functions and base
 // keys). Literals such as {{2+2}} are not expressions.
-func evaluate(data string, base map[string]interface{}, options *types.Options) (string, error) {
+func evaluate(data string, base map[string]interface{}, options *types.Options, logger *gologger.Logger) (string, error) {
 	spans := findExpressionSpans(data, marker.ParenthesisOpen, marker.ParenthesisClose, base)
 	if len(spans) == 0 {
 		return replacer.Replace(data, base), nil
@@ -74,7 +81,7 @@ func evaluate(data string, base map[string]interface{}, options *types.Options) 
 	builder.Grow(len(data))
 
 	for _, span := range spans {
-		result, err := evaluateExpression(span.expression, base, options)
+		result, err := evaluateExpression(span.expression, base, options, logger)
 		if err != nil {
 			return data, err
 		}
@@ -92,10 +99,14 @@ func evaluate(data string, base map[string]interface{}, options *types.Options) 
 
 // evaluateExpression compiles and evaluates one template-authored expression,
 // the text between its markers, and returns the result as text.
-func evaluateExpression(expression string, base map[string]any, options *types.Options) (string, error) {
+func evaluateExpression(expression string, base map[string]any, options *types.Options, logger *gologger.Logger) (string, error) {
 	source := replaceStringPlaceholders(expression, base)
 
-	compiled, err := govaluate.NewEvaluableExpressionWithFunctions(source, dsl.HelperFunctions)
+	functions := dsl.HelperFunctions
+	if logger != nil && strings.Contains(source, "print") {
+		functions = dsl.HelpersWithLogger(logger)
+	}
+	compiled, err := govaluate.NewEvaluableExpressionWithFunctions(source, functions)
 	if err != nil {
 		return "", fmt.Errorf("failed to compile expression %q: %w", expression, err)
 	}

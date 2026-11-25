@@ -11,6 +11,10 @@ import (
 
 // WriteResult is a helper for writing results to the output
 func WriteResult(data *output.InternalWrappedEvent, out output.Writer, progress progress.Progress, issuesClient reporting.Client) bool {
+	return WriteResultWithLogger(data, out, progress, issuesClient, gologger.DefaultLogger)
+}
+
+func WriteResultWithLogger(data *output.InternalWrappedEvent, out output.Writer, progress progress.Progress, issuesClient reporting.Client, logger *gologger.Logger) bool {
 	// Handle the case where no result found for the template.
 	// In this case, we just show misc information about the failed
 	// match for the template.
@@ -24,14 +28,14 @@ func WriteResult(data *output.InternalWrappedEvent, out output.Writer, progress 
 			if stderrors.Is(err, output.ErrHoneypotSuppressed) {
 				suppressed = true
 			} else {
-				gologger.Warning().Msgf("Could not write output event: %s\n", err)
+				logger.Warning().Msgf("Could not write output event: %s\n", err)
 			}
 		}
 
 		// Only create issues when the result was not suppressed.
 		if issuesClient != nil && !suppressed {
 			if err := issuesClient.CreateIssue(result); err != nil {
-				gologger.Warning().Msgf("Could not create issue on tracker: %s", err)
+				logger.Warning().Msgf("Could not create issue on tracker: %s", err)
 			}
 		}
 		if !matched {

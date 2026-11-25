@@ -8,6 +8,7 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
@@ -131,6 +132,10 @@ func (request *Request) GetCompiledOperators() []*operators.Operators {
 // GetID returns the unique ID of the request if any.
 func (request *Request) GetID() string {
 	return request.ID
+}
+
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
 }
 
 // Options returns executer options for http request

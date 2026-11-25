@@ -46,6 +46,10 @@ func (f *Form) IsType(data string) bool {
 
 // Encode encodes the data into Form format
 func (f *Form) Encode(data KV) (string, error) {
+	return f.EncodeWithLogger(data, gologger.DefaultLogger)
+}
+
+func (f *Form) EncodeWithLogger(data KV, logger *gologger.Logger) (string, error) {
 	params := urlutil.NewOrderedParams()
 
 	data.Iterate(func(key string, value any) bool {
@@ -85,7 +89,7 @@ func (f *Form) Encode(data KV) (string, error) {
 				if len(matches) == 2 {
 					dataIdx, err := strconv.Atoi(matches[1])
 					if err != nil {
-						gologger.Verbose().Msgf("error converting normalized index(%v) to integer: %v", matches[1], err)
+						logger.Verbose().Msgf("error converting normalized index(%v) to integer: %v", matches[1], err)
 						continue
 					}
 					if dataIdx > maxIndex {
@@ -100,14 +104,14 @@ func (f *Form) Encode(data KV) (string, error) {
 					if len(matches) == 2 {
 						dataIdx, err := strconv.Atoi(matches[1]) // Error already checked above
 						if err != nil {
-							gologger.Verbose().Msgf("error converting data index to integer: %v", err)
+							logger.Verbose().Msgf("error converting data index to integer: %v", err)
 							continue
 						}
 						// Validate dataIdx to avoid index out of range errors
 						if dataIdx > 0 && dataIdx <= len(data) {
 							data[dataIdx-1] = value // Use dataIdx-1 since slice is 0-indexed
 						} else {
-							gologger.Verbose().Msgf("data index out of range: %d", dataIdx)
+							logger.Verbose().Msgf("data index out of range: %d", dataIdx)
 						}
 					}
 				}

@@ -17,7 +17,6 @@ import (
 	"github.com/go-rod/rod/lib/utils"
 	"github.com/kitabisa/go-ci"
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/expressions"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
@@ -631,7 +630,7 @@ func (p *Page) Screenshot(act *Action, out ActionData) error {
 	if generatedName && act.Name != "" && !lfaAllowed {
 		out[act.Name] = filePath
 	}
-	gologger.Info().Msgf("Screenshot successfully saved at %v\n", filePath)
+	p.options.Options.GetLogger().Info().Msgf("Screenshot successfully saved at %v\n", filePath)
 	return nil
 }
 

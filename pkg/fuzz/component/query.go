@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/dataformat"
 	"github.com/projectdiscovery/retryablehttp-go"
 	urlutil "github.com/projectdiscovery/utils/url"
@@ -36,7 +37,7 @@ func (q *Query) Parse(req *retryablehttp.Request) (bool, error) {
 	}
 	q.req = req
 
-	q.value = NewValue(req.URL.Query().Encode())
+	q.value = newValue(req.URL.Query().Encode(), logging.FromContext(req.Context()))
 
 	parsed, err := dataformat.Get(dataformat.FormDataFormat).Decode(q.value.String())
 	if err != nil {

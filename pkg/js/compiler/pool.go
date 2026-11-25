@@ -12,6 +12,7 @@ import (
 	"github.com/projectdiscovery/goja_nodejs/console"
 	"github.com/projectdiscovery/goja_nodejs/require"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	stringsutil "github.com/projectdiscovery/utils/strings"
 	syncutil "github.com/projectdiscovery/utils/sync"
 
@@ -29,9 +30,9 @@ import (
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libkrbforge"
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libkrbroast"
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libldap"
+	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libmqtt"
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libmssql"
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libmysql"
-	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libmqtt"
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libnet"
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/liboracle"
 	_ "github.com/projectdiscovery/nuclei/v3/pkg/js/generated/go/libpop3"
@@ -76,7 +77,9 @@ var errRuntimeTerminationTimeout = errors.New("nuclei js runtime: program failed
 var (
 	lazyRegistryInit = sync.OnceFunc(func() {
 		// autoregister console node module with default printer it uses gologger backend
-		require.RegisterNativeModule(console.ModuleName, console.RequireWithPrinter(goconsole.NewGoConsolePrinter()))
+		require.RegisterNativeModule(console.ModuleName, func(runtime *goja.Runtime, module *goja.Object) {
+			console.RequireWithPrinter(goconsole.NewRuntimePrinter(runtime))(runtime, module)
+		})
 	})
 	pooljsc    *syncutil.AdaptiveWaitGroup
 	lazySgInit = sync.OnceFunc(func() {
@@ -86,7 +89,7 @@ var (
 		// resize check point
 		if pooljsc.Size != PoolingJsVmConcurrency {
 			if err := pooljsc.Resize(ctx, PoolingJsVmConcurrency); err != nil {
-				gologger.Warning().Msgf("Could not resize workpool: %s\n", err)
+				logging.FromContext(ctx).Warning().Msgf("Could not resize workpool: %s\n", err)
 			}
 		}
 	}
@@ -103,6 +106,9 @@ var gojapool = &sync.Pool{
 func ExecuteProgram(ctx context.Context, p *goja.Program, args *ExecuteArgs, opts *ExecuteOptions) (goja.Value, error) {
 	if opts == nil {
 		opts = &ExecuteOptions{}
+	}
+	if opts.Logger != nil {
+		ctx = logging.WithLogger(ctx, opts.Logger)
 	}
 	if opts.Source == nil {
 		// not-recommended anymore
@@ -164,7 +170,7 @@ func executeWithPoolingProgram(ctx context.Context, p *goja.Program, args *Execu
 		releaseSlot:          pooljsc.Done,
 		releaseAbandonedSlot: pooljsc.Done,
 		onAbandon: func(err error) {
-			gologger.Warning().Msgf("js runtime did not terminate after interrupt; abandoning it to avoid concurrent use: %s", err)
+			logging.FromContext(ctx).Warning().Msgf("js runtime did not terminate after interrupt; abandoning it to avoid concurrent use: %s", err)
 		},
 	})
 	return session.run()

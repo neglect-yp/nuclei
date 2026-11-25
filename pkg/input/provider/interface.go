@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats/openapi"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats/swagger"
@@ -92,7 +91,7 @@ func NewInputProvider(opts InputOptions) (InputProvider, error) {
 	val, err := formats.ReadOpenAPIVarDumpFile()
 	if err != nil && !errors.Is(err, formats.ErrNoVarsDumpFile) {
 		// log error and continue
-		gologger.Error().Msgf("Could not read vars dump file: %s\n", err)
+		opts.Options.GetLogger().Error().Msgf("Could not read vars dump file: %s\n", err)
 	}
 	extraVars := make(map[string]interface{})
 	if val != nil {
@@ -158,6 +157,7 @@ func NewInputProvider(opts InputOptions) (InputProvider, error) {
 		InputFile: opts.Options.TargetsFilePath,
 		InputMode: opts.Options.InputFileMode,
 		Options: formats.InputFormatOptions{
+			Logger:               opts.Options.GetLogger(),
 			Variables:            generators.MergeMaps(extraVars, opts.Options.Vars.AsMap()),
 			SkipFormatValidation: opts.Options.SkipFormatValidation,
 			RequiredOnly:         opts.Options.FormatUseRequiredOnly,

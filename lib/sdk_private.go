@@ -114,12 +114,20 @@ func (e *NucleiEngine) applyRequiredDefaults(ctx context.Context) {
 		e.hostErrCache = hosterrorscache.New(30, hosterrorscache.DefaultMaxHostsCount, nil)
 	}
 
+	if e.hostErrCache != nil {
+		e.hostErrCache.SetLogger(e.Logger)
+	}
+
 	// setup interactsh
 	if e.interactshOpts != nil {
 		e.interactshOpts.Output = e.customWriter
 		e.interactshOpts.Progress = e.customProgress
 	} else {
 		e.interactshOpts = interactsh.DefaultOptions(e.customWriter, e.rc, e.customProgress)
+	}
+
+	if e.loggerOverridden || e.interactshOpts.Logger == nil {
+		e.interactshOpts.Logger = e.Logger
 	}
 
 	if e.rateLimiter == nil {
@@ -230,7 +238,7 @@ func (e *NucleiEngine) init(ctx context.Context) error {
 
 	// setup progressbar
 	if e.enableStats {
-		progressInstance, progressErr := progress.NewStatsTicker(e.opts.StatsInterval, e.enableStats, e.opts.StatsJSON, false, e.opts.MetricsPort)
+		progressInstance, progressErr := progress.NewStatsTickerWithLogger(e.opts.StatsInterval, e.enableStats, e.opts.StatsJSON, false, e.opts.MetricsPort, e.Logger)
 		if progressErr != nil {
 			return err
 		}
@@ -245,6 +253,7 @@ func (e *NucleiEngine) init(ctx context.Context) error {
 	if ropts == nil {
 		ropts = &reporting.Options{}
 	}
+	ropts.Logger = e.Logger
 	if e.rc, err = reporting.New(ropts, "", false); err != nil {
 		return err
 	}
@@ -434,7 +443,7 @@ func (e *NucleiEngine) processUpdateCheckResults() error {
 	})
 	if !e.disableTemplatesAutoUpgrade {
 		templateUpdateInstance.Do(func() {
-			tm := installer.TemplateManager{}
+			tm := installer.TemplateManager{Logger: e.Logger}
 			err = tm.UpdateIfOutdated()
 		})
 	}

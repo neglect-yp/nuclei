@@ -19,6 +19,7 @@ import (
 	"github.com/google/go-github/v92/github"
 	"github.com/olekukonko/tablewriter"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/external/customtemplates"
 	filepathutil "github.com/projectdiscovery/nuclei/v3/pkg/utils/filepath"
@@ -73,6 +74,7 @@ func (t *templateUpdateResults) String() string {
 // TemplateManager is a manager for templates.
 // It downloads / updates / installs templates.
 type TemplateManager struct {
+	Logger                 *gologger.Logger
 	CustomTemplates        *customtemplates.CustomTemplatesManager // optional if given tries to download custom templates
 	DisablePublicTemplates bool                                    // if true,
 	// public templates are not downloaded from the GitHub nuclei-templates repository
@@ -84,6 +86,10 @@ type TemplateManager struct {
 	// fetchLatestRelease overrides where the official release comes from; nil
 	// means GitHub
 	fetchLatestRelease func() (templateRelease, error)
+}
+
+func (t *TemplateManager) logger() *gologger.Logger {
+	return logging.OrDefault(t.Logger)
 }
 
 // latestRelease returns the official templates to install for the configured
@@ -105,7 +111,7 @@ func (t *TemplateManager) FreshInstallIfNotExists() error {
 		return nil
 	}
 
-	gologger.Info().Msgf("nuclei-templates are not installed, installing...")
+	t.logger().Info().Msgf("nuclei-templates are not installed, installing...")
 	if err := t.installTemplatesAt(config.DefaultConfig.TemplatesDirectory); err != nil {
 		return errkit.Wrapf(err, "failed to install templates at %s", config.DefaultConfig.TemplatesDirectory)
 	}
@@ -137,7 +143,7 @@ func (t *TemplateManager) updateIfOutdatedLocked() error {
 	// the version in memory predates the lock; a process that held it before
 	// this one may have already installed the latest release
 	if err := config.DefaultConfig.ReloadTemplateVersion(); err != nil {
-		gologger.Debug().Msgf("Could not reload templates version, using the one loaded at startup: %s", err)
+		t.logger().Debug().Msgf("Could not reload templates version, using the one loaded at startup: %s", err)
 	}
 
 	if t.Channel == TemplatesChannelLatest {
@@ -162,7 +168,7 @@ func (t *TemplateManager) updateIfOutdatedLocked() error {
 			latestVersion := release.Version()
 			if config.IsOutdatedVersion(config.DefaultConfig.TemplateVersion, latestVersion) {
 				needsUpdate = true
-				gologger.Debug().Msgf("PDTM API unavailable, verified update needed via GitHub API: %s -> %s", config.DefaultConfig.TemplateVersion, latestVersion)
+				t.logger().Debug().Msgf("PDTM API unavailable, verified update needed via GitHub API: %s -> %s", config.DefaultConfig.TemplateVersion, latestVersion)
 			}
 		}
 	}
@@ -198,7 +204,7 @@ func (t *TemplateManager) installTemplatesAt(dir string) error {
 	}
 
 	if t.DisablePublicTemplates {
-		gologger.Info().Msgf("Skipping installation of public nuclei-templates")
+		t.logger().Info().Msgf("Skipping installation of public nuclei-templates")
 		return nil
 	}
 
@@ -217,7 +223,7 @@ func (t *TemplateManager) installTemplatesAt(dir string) error {
 		return errkit.Wrapf(finalizeErr, "failed to finalize template installation at %s", dir)
 	}
 
-	gologger.Info().Msgf("Successfully installed nuclei-templates at %s", dir)
+	t.logger().Info().Msgf("Successfully installed nuclei-templates at %s", dir)
 
 	return nil
 }
@@ -240,7 +246,7 @@ func (t *TemplateManager) finalizeTemplateRelease(cfg *config.Config, writtenOut
 
 	var finalizationErr error
 
-	if err := reconcileTemplateOwnership(dir, writtenOutputs); err != nil {
+	if err := t.reconcileTemplateOwnership(dir, writtenOutputs); err != nil {
 		finalizationErr = errors.Join(finalizationErr, fmt.Errorf("reconcile template ownership: %w", err))
 	}
 
@@ -293,7 +299,7 @@ func (t *TemplateManager) bootstrapTemplateOwnership(dir, version string, fetchA
 			return err
 		}
 
-		gologger.Verbose().Msgf("Replacing invalid template ownership metadata without retiring prior templates: %s", err)
+		t.logger().Verbose().Msgf("Replacing invalid template ownership metadata without retiring prior templates: %s", err)
 
 		return nil
 	} else if !errors.Is(err, errTemplateOwnershipMissing) {
@@ -307,13 +313,13 @@ func (t *TemplateManager) bootstrapTemplateOwnership(dir, version string, fetchA
 
 	archive, err := fetchArchive(templateVersionRef(version))
 	if err != nil {
-		gologger.Verbose().Msgf("Continuing template update without prior ownership for %q: %s", version, err)
+		t.logger().Verbose().Msgf("Continuing template update without prior ownership for %q: %s", version, err)
 		return nil
 	}
 
 	if err := t.bootstrapTemplateOwnershipFromArchive(dir, archive); err != nil {
 		if errors.Is(err, errTemplateOwnershipArchiveInvalid) {
-			gologger.Verbose().Msgf("Continuing template update without prior ownership for %q: %s", version, err)
+			t.logger().Verbose().Msgf("Continuing template update without prior ownership for %q: %s", version, err)
 			return nil
 		}
 
@@ -431,7 +437,7 @@ func (t *TemplateManager) bootstrapTemplateOwnershipFromArchive(dir string, arch
 // updateTemplatesAt updates templates at given directory
 func (t *TemplateManager) updateTemplatesAt(dir string) error {
 	if t.DisablePublicTemplates {
-		gologger.Info().Msgf("Skipping update of public nuclei-templates")
+		t.logger().Info().Msgf("Skipping update of public nuclei-templates")
 
 		return nil
 	}
@@ -458,9 +464,9 @@ func (t *TemplateManager) updateTemplatesAt(dir string) error {
 	// versions on the latest channel only differ in build metadata, which
 	// version comparison ignores
 	if t.Channel == TemplatesChannelLatest || config.IsOutdatedVersion(currentVersion, latestVersion) {
-		gologger.Info().Msgf("Your current nuclei-templates %s are outdated. Latest is %s\n", currentVersion, latestVersion)
+		t.logger().Info().Msgf("Your current nuclei-templates %s are outdated. Latest is %s\n", currentVersion, latestVersion)
 	} else {
-		gologger.Debug().Msgf("Updating nuclei-templates from %s to %s (forced update)\n", currentVersion, latestVersion)
+		t.logger().Debug().Msgf("Updating nuclei-templates from %s to %s (forced update)\n", currentVersion, latestVersion)
 	}
 
 	// write templates to disk
@@ -475,14 +481,14 @@ func (t *TemplateManager) updateTemplatesAt(dir string) error {
 
 	// print summary
 	if results.totalCount > 0 {
-		gologger.Info().Msgf("Successfully updated nuclei-templates (%v) to %s. GoodLuck!", latestVersion, dir)
+		t.logger().Info().Msgf("Successfully updated nuclei-templates (%v) to %s. GoodLuck!", latestVersion, dir)
 		if !HideUpdateChangesTable {
 			// print summary table
-			gologger.Print().Msgf("\nNuclei Templates %s Changelog\n", latestVersion)
-			gologger.Print().Msg(results.String())
+			logging.Print(t.logger()).Msgf("\nNuclei Templates %s Changelog\n", latestVersion)
+			logging.Print(t.logger()).Msg(results.String())
 		}
 	} else {
-		gologger.Info().Msgf("Successfully updated nuclei-templates (%v) to %s. GoodLuck!", latestVersion, dir)
+		t.logger().Info().Msgf("Successfully updated nuclei-templates (%v) to %s. GoodLuck!", latestVersion, dir)
 	}
 
 	return nil
@@ -533,7 +539,7 @@ func (t *TemplateManager) getTemplateOutputLocation(templateDir, uri string, f f
 	index := strings.Index(uri, "/")
 	if index == -1 {
 		// zip files does not have directory at all , in this case log error but continue
-		gologger.Warning().Msgf("failed to get directory name from uri: %s", uri)
+		t.logger().Warning().Msgf("failed to get directory name from uri: %s", uri)
 		// Even in this fallback path the entry name comes from a downloaded
 		// archive, so we must still verify it cannot escape templateDir.
 		// On Windows in particular, an entry named "..\\foo" has no slash but
@@ -638,16 +644,16 @@ func (t *TemplateManager) writeTemplatesToDisk(release templateRelease, dir stri
 		// adjust colors for both dark / light terminal themes
 		r, err := glamour.NewTermRenderer(glamour.WithAutoStyle())
 		if err != nil {
-			gologger.Error().Msgf("markdown rendering not supported: %v", err)
+			t.logger().Error().Msgf("markdown rendering not supported: %v", err)
 		}
 
 		if rendered, err := r.Render(output); err == nil {
 			output = rendered
 		} else {
-			gologger.Error().Msg(err.Error())
+			t.logger().Error().Msg(err.Error())
 		}
 
-		gologger.Print().Msgf("\n%v\n\n", output)
+		logging.Print(t.logger()).Msgf("\n%v\n\n", output)
 	}
 
 	return writtenOutputs, nil

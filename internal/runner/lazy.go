@@ -141,7 +141,7 @@ func GetLazyAuthFetchCallback(opts *AuthLazyFetchOptions) authx.LazyFetchSecret 
 				}
 			}
 			// log result of template in result file/screen
-			_ = writer.WriteResult(e, opts.ExecOpts.Output, opts.ExecOpts.Progress, opts.ExecOpts.IssuesClient)
+			_ = writer.WriteResultWithLogger(e, opts.ExecOpts.Output, opts.ExecOpts.Progress, opts.ExecOpts.IssuesClient, opts.ExecOpts.GetLogger())
 		}
 		_, execErr := tmpl.Executer.ExecuteWithResults(ctx)
 		if execErr != nil {

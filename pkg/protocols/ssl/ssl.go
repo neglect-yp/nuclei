@@ -7,12 +7,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
+
 	"github.com/cespare/xxhash"
 	"github.com/fatih/structs"
 	"github.com/pkg/errors"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/extractors"
@@ -205,6 +207,10 @@ func (request *Request) GetID() string {
 	return request.ID
 }
 
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
+}
+
 // allowedAddress returns the first address of host that the network policy allows.
 func (request *Request) allowedAddress(host string) (string, error) {
 	dnsData, err := request.dialer.GetDNSData(host)
@@ -249,7 +255,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 	payloadValues = generators.MergeMaps(payloadValues, request.options.Constants)
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("SSL Protocol request variables: %s\n", vardump.DumpVariables(payloadValues))
+		request.GetLogger().Debug().Msgf("SSL Protocol request variables: %s\n", vardump.DumpVariables(payloadValues))
 	}
 
 	result, dataErr := render.Render(render.Input{Options: request.options.GetOptions(), Text: request.Address, Values: payloadValues})
@@ -315,12 +321,12 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 	}
 
 	requestOptions.Output.Request(requestOptions.TemplateID, hostPort, request.Type().String(), err)
-	gologger.Verbose().Msgf("[%s] Sent SSL request to %s", request.options.TemplateID, hostPort)
+	request.GetLogger().Verbose().Msgf("[%s] Sent SSL request to %s", request.options.TemplateID, hostPort)
 
 	if requestOptions.Options.Debug || requestOptions.Options.DebugRequests || requestOptions.Options.StoreResponse {
 		msg := fmt.Sprintf("[%s] Dumped SSL request for %s", requestOptions.TemplateID, input.MetaInput.Input)
 		if requestOptions.Options.Debug || requestOptions.Options.DebugRequests {
-			gologger.Debug().Str("address", input.MetaInput.Input).Msg(msg)
+			request.GetLogger().Debug().Str("address", input.MetaInput.Input).Msg(msg)
 		}
 		if requestOptions.Options.StoreResponse {
 			request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), msg)
@@ -395,8 +401,8 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 	if requestOptions.Options.Debug || requestOptions.Options.DebugResponse || requestOptions.Options.StoreResponse {
 		msg := fmt.Sprintf("[%s] Dumped SSL response for %s", requestOptions.TemplateID, input.MetaInput.Input)
 		if requestOptions.Options.Debug || requestOptions.Options.DebugResponse {
-			gologger.Debug().Msg(msg)
-			gologger.Print().Msgf("%s", responsehighlighter.Highlight(event.OperatorsResult, jsonDataString, requestOptions.Options.NoColor, false))
+			request.GetLogger().Debug().Msg(msg)
+			logging.Print(request.GetLogger()).Msgf("%s", responsehighlighter.Highlight(event.OperatorsResult, jsonDataString, requestOptions.Options.NoColor, false))
 		}
 		if requestOptions.Options.StoreResponse {
 			request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, jsonDataString))

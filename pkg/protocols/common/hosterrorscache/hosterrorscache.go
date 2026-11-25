@@ -11,6 +11,7 @@ import (
 
 	"github.com/projectdiscovery/gcache"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types/nucleierr"
@@ -41,6 +42,7 @@ var (
 // It uses an LRU cache internally for skipping unresponsive hosts
 // that remain so for a duration.
 type Cache struct {
+	logger          *gologger.Logger
 	MaxHostError    int
 	verbose         bool
 	maxHostsCount   int
@@ -85,6 +87,11 @@ func (c *Cache) getFailedTargets(create bool) gcache.Cache[string, *cacheItem] {
 	return c.failedTargets
 }
 
+// SetLogger selects the logger before the cache is used.
+func (c *Cache) SetLogger(logger *gologger.Logger) {
+	c.logger = logger
+}
+
 // SetVerbose sets the cache to log at verbose level
 func (c *Cache) SetVerbose(verbose bool) {
 	c.verbose = verbose
@@ -102,7 +109,7 @@ func (c *Cache) Close() {
 	if cache != nil && config.DefaultConfig.IsDebugArgEnabled(config.DebugArgHostErrorStats) {
 		items := cache.GetALL(false)
 		for k, val := range items {
-			gologger.Info().Label("MaxHostErrorStats").Msgf("Host: %s, Errors: %d", k, val.errors.Load())
+			logging.OrDefault(c.logger).Info().Label("MaxHostErrorStats").Msgf("Host: %s, Errors: %d", k, val.errors.Load())
 		}
 	}
 	// The cache owns no background resource. Purge rebuilds an empty ARC with
@@ -173,14 +180,14 @@ func (c *Cache) Check(protoType string, ctx *contextargs.Context) bool {
 
 	if cache.isPermanentErr {
 		cache.Do(func() {
-			gologger.Info().Msgf("Skipped %s from target list as found unresponsive permanently: %s", finalValue, cache.cause)
+			logging.FromContextOr(ctx.Context(), c.logger).Info().Msgf("Skipped %s from target list as found unresponsive permanently: %s", finalValue, cache.cause)
 		})
 		return true
 	}
 
 	if cache.errors.Load() >= int32(c.MaxHostError) {
 		cache.Do(func() {
-			gologger.Info().Msgf("Skipped %s from target list as found unresponsive %d times", finalValue, cache.errors.Load())
+			logging.FromContextOr(ctx.Context(), c.logger).Info().Msgf("Skipped %s from target list as found unresponsive %d times", finalValue, cache.errors.Load())
 		})
 		return true
 	}

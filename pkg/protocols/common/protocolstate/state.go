@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"golang.org/x/net/idna"
 	"golang.org/x/net/proxy"
 
@@ -223,6 +225,7 @@ func initDialers(options *types.Options) error {
 	httpClientPool := NewHTTPPool(90*time.Second, 30*time.Second)
 
 	dialersInstance := &Dialers{
+		logger:                     options.GetLogger(),
 		Fastdialer:                 dialer,
 		NetworkPolicy:              networkPolicy,
 		HTTPClientPool:             httpClientPool,
@@ -340,7 +343,11 @@ func Close(executionId string) {
 	dialers.Delete(executionId)
 
 	if dialers.IsEmpty() {
-		httpcache.Close()
+		var logger *gologger.Logger
+		if dialersInstance != nil {
+			logger = dialersInstance.logger
+		}
+		httpcache.CloseWithLogger(logging.OrDefault(logger))
 		StopActiveMemGuardian()
 	}
 }

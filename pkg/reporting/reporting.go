@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model/types/stringslice"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
@@ -105,9 +105,11 @@ func New(options *Options, db string, doNotDedupe bool) (Client, error) {
 		client.trackers = append(client.trackers, tracker)
 	}
 	if options.Jira != nil {
-		options.Jira.HttpClient = options.HttpClient
-		options.Jira.OmitRaw = options.OmitRaw
-		tracker, err := jira.New(options.Jira)
+		child := *options.Jira
+		child.Logger = options.Logger
+		child.HttpClient = options.HttpClient
+		child.OmitRaw = options.OmitRaw
+		tracker, err := jira.New(&child)
 		if err != nil {
 			return nil, errkit.Wrapf(err, "could not create reporting client: %v", ErrReportingClientCreation)
 		}
@@ -123,7 +125,9 @@ func New(options *Options, db string, doNotDedupe bool) (Client, error) {
 		client.trackers = append(client.trackers, tracker)
 	}
 	if options.MarkdownExporter != nil {
-		exporter, err := markdown.New(options.MarkdownExporter)
+		child := *options.MarkdownExporter
+		child.Logger = options.Logger
+		exporter, err := markdown.New(&child)
 		if err != nil {
 			return nil, errkit.Wrapf(err, "could not create export client: %v", ErrExportClientCreation)
 		}
@@ -183,7 +187,9 @@ func New(options *Options, db string, doNotDedupe bool) (Client, error) {
 		client.exporters = append(client.exporters, exporter)
 	}
 	if options.MongoDBExporter != nil {
-		exporter, err := mongo.New(options.MongoDBExporter)
+		child := *options.MongoDBExporter
+		child.Logger = options.Logger
+		exporter, err := mongo.New(&child)
 		if err != nil {
 			return nil, errkit.Wrapf(err, "could not create export client: %v", ErrExportClientCreation)
 		}
@@ -281,7 +287,7 @@ func (c *ReportingClient) Close() {
 				if failed > 0 {
 					fmt.Fprintf(&msgBuilder, ", %d failed", failed)
 				}
-				gologger.Info().Msgf("%v", msgBuilder.String())
+				logging.OrDefault(c.options.Logger).Info().Msgf("%v", msgBuilder.String())
 			}
 		}
 	}

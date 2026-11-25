@@ -16,6 +16,7 @@ import (
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/interactsh/pkg/client"
 	"github.com/projectdiscovery/interactsh/pkg/server"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/frequency"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
@@ -199,6 +200,13 @@ func (c *Client) initializeCaches() {
 	})
 }
 
+func (c *Client) logger(data *RequestData) *gologger.Logger {
+	if data != nil && data.Logger != nil {
+		return data.Logger
+	}
+	return logging.OrDefault(c.options.Logger)
+}
+
 func (c *Client) poll() error {
 	if c.options.NoInteractsh {
 		// do not init if disabled
@@ -220,7 +228,7 @@ func (c *Client) poll() error {
 
 	interactURL := interactsh.URL()
 	interactDomain := interactURL[strings.Index(interactURL, ".")+1:]
-	gologger.Info().Msgf("Using Interactsh Server: %s", interactDomain)
+	c.logger(nil).Info().Msgf("Using Interactsh Server: %s", interactDomain)
 
 	c.setHostname(interactDomain)
 
@@ -232,7 +240,7 @@ func (c *Client) poll() error {
 		c.notifyInteraction(interaction, request, err)
 		// for more context in github actions
 		if strings.EqualFold(os.Getenv("GITHUB_ACTIONS"), "true") && c.options.Debug {
-			gologger.DefaultLogger.Print().Msgf("[Interactsh]: got interaction of %v for request %v and error %v", interaction, request, err)
+			c.logger(request).Print().Msgf("[Interactsh]: got interaction of %v for request %v and error %v", interaction, request, err)
 		}
 		if errors.Is(err, gcache.KeyNotFoundError) || request == nil {
 			// If we don't have any request for this ID, add it to temporary
@@ -285,6 +293,7 @@ func requestShouldStopAtFirstMatch(request *RequestData) bool {
 
 // processInteractionForRequest processes an interaction for a request
 func (c *Client) processInteractionForRequest(interaction *server.Interaction, data *RequestData) bool {
+	logger := c.logger(data)
 	var result *operators.Result
 	var matched bool
 	var templateID string
@@ -307,12 +316,12 @@ func (c *Client) processInteractionForRequest(interaction *server.Interaction, d
 	}
 	data.Event.Unlock()
 	if data.Operators == nil {
-		gologger.Error().Msgf("missing compiled operators for '%v' template", templateID)
+		logger.Error().Msgf("missing compiled operators for '%v' template", templateID)
 	}
 
 	// for more context in github actions
 	if strings.EqualFold(os.Getenv("GITHUB_ACTIONS"), "true") && c.options.Debug {
-		gologger.DefaultLogger.Print().Msgf("[Interactsh]: got result %v and status %v after processing interaction", result, matched)
+		logger.Print().Msgf("[Interactsh]: got result %v and status %v after processing interaction", result, matched)
 	}
 
 	fuzzParamsFrequency := data.FuzzParamsFrequency
@@ -358,7 +367,7 @@ func (c *Client) processInteractionForRequest(interaction *server.Interaction, d
 	data.Event.Unlock()
 
 	if c.options.Debug || c.options.DebugRequest || c.options.DebugResponse {
-		c.debugPrintInteraction(interaction, data.Event.OperatorsResult)
+		c.debugPrintInteraction(interaction, data.Event.OperatorsResult, logger)
 	}
 
 	// if event is not already matched, write it to output
@@ -374,7 +383,7 @@ func (c *Client) processInteractionForRequest(interaction *server.Interaction, d
 	if issuesClient == nil {
 		issuesClient = c.options.IssuesClient
 	}
-	if !data.Event.InteractshMatched.Load() && writer.WriteResult(data.Event, outputWriter, progressClient, issuesClient) {
+	if !data.Event.InteractshMatched.Load() && writer.WriteResultWithLogger(data.Event, outputWriter, progressClient, issuesClient, logger) {
 		data.Event.InteractshMatched.Store(true)
 		c.matched.Store(true)
 		if requestShouldStopAtFirstMatch(data) || c.options.StopAtFirstMatch {
@@ -502,6 +511,7 @@ type MakeResultEventFunc func(wrapped *output.InternalWrappedEvent) []*output.Re
 
 // RequestData contains data for a request event
 type RequestData struct {
+	Logger         *gologger.Logger
 	MakeResultFunc MakeResultEventFunc
 	Event          *output.InternalWrappedEvent
 	Operators      *operators.Operators
@@ -623,7 +633,7 @@ func HasMarkers(data string) bool {
 	return marker.HasInteractshURLMarker(data) || interactshSNIAnnotationRegex.MatchString(data)
 }
 
-func (c *Client) debugPrintInteraction(interaction *server.Interaction, event *operators.Result) {
+func (c *Client) debugPrintInteraction(interaction *server.Interaction, event *operators.Result, logger *gologger.Logger) {
 	builder := &bytes.Buffer{}
 
 	switch interaction.Protocol {
@@ -654,7 +664,7 @@ func (c *Client) debugPrintInteraction(interaction *server.Interaction, event *o
 			builder.WriteString(formatInteractionMessage("LDAP Interaction", interaction.RawRequest, event, c.options.NoColor))
 		}
 	}
-	_, _ = fmt.Fprint(os.Stderr, builder.String())
+	logging.Print(logger).Msg(builder.String())
 }
 
 func formatInteractionHeader(protocol, ID, address string, at time.Time) string {

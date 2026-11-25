@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/authprovider/authx"
 	"github.com/projectdiscovery/rawhttp/client"
 	"github.com/projectdiscovery/utils/errkit"
@@ -334,6 +335,10 @@ func (r *Request) TryFillCustomHeaders(headers []string) error {
 
 // ApplyAuthStrategy applies the auth strategy to the request
 func (r *Request) ApplyAuthStrategy(strategy authx.AuthStrategy) {
+	r.ApplyAuthStrategyWithLogger(strategy, gologger.DefaultLogger)
+}
+
+func (r *Request) ApplyAuthStrategyWithLogger(strategy authx.AuthStrategy, logger *gologger.Logger) {
 	if strategy == nil {
 		return
 	}
@@ -341,7 +346,7 @@ func (r *Request) ApplyAuthStrategy(strategy authx.AuthStrategy) {
 	case *authx.QueryAuthStrategy:
 		parsed, err := urlutil.Parse(r.FullURL)
 		if err != nil {
-			gologger.Error().Msgf("auth strategy failed to parse url: %s got %v", r.FullURL, err)
+			logging.OrDefault(logger).Error().Msgf("auth strategy failed to parse url: %s got %v", r.FullURL, err)
 			return
 		}
 		for _, p := range s.Data.Params {
@@ -371,6 +376,6 @@ func (r *Request) ApplyAuthStrategy(strategy authx.AuthStrategy) {
 	case *authx.BasicAuthStrategy:
 		r.Headers["Authorization"] = "Basic " + base64.StdEncoding.EncodeToString([]byte(s.Data.Username+":"+s.Data.Password))
 	default:
-		gologger.Warning().Msgf("[raw-request] unknown auth strategy: %T", s)
+		logging.OrDefault(logger).Warning().Msgf("[raw-request] unknown auth strategy: %T", s)
 	}
 }

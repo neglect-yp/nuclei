@@ -3,7 +3,6 @@ package eventcreator
 import (
 	"sync/atomic"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
@@ -52,7 +51,7 @@ func CreateEventWithAdditionalOptions(request protocols.Request, outputEvent out
 	// Dump response variables if ran in debug mode
 	if vardump.EnableVarDump {
 		protoName := cases.Title(language.English).String(request.Type().String())
-		gologger.Debug().Msgf("%v Protocol response variables: %s\n", protoName, vardump.DumpVariables(outputEvent))
+		protocols.RequestLogger(request).Debug().Msgf("%v Protocol response variables: %s\n", protoName, vardump.DumpVariables(outputEvent))
 	}
 	for _, compiledOperator := range request.GetCompiledOperators() {
 		if compiledOperator != nil {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/logrusorgru/aurora/v4"
 	"github.com/projectdiscovery/goja"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/js/gojs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/utils/vardump"
@@ -82,11 +81,11 @@ func registerBuiltins(runtime *goja.Runtime) {
 			arg := call.Argument(0).Export()
 			switch value := arg.(type) {
 			case string:
-				gologger.DefaultLogger.Print().Msgf("[%v] %v", aurora.BrightCyan("JS"), value)
+				gojs.RuntimeLogger(runtime).Print().Msgf("[%v] %v", aurora.BrightCyan("JS"), value)
 			case map[string]interface{}:
-				gologger.DefaultLogger.Print().Msgf("[%v] %v", aurora.BrightCyan("JS"), vardump.DumpVariables(value))
+				gojs.RuntimeLogger(runtime).Print().Msgf("[%v] %v", aurora.BrightCyan("JS"), vardump.DumpVariables(value))
 			default:
-				gologger.DefaultLogger.Print().Msgf("[%v] %v", aurora.BrightCyan("JS"), value)
+				gojs.RuntimeLogger(runtime).Print().Msgf("[%v] %v", aurora.BrightCyan("JS"), value)
 			}
 			return call.Argument(0) // return the same value
 		},

@@ -1,18 +1,19 @@
 package compiler
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/projectdiscovery/goja"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
@@ -21,28 +22,39 @@ import (
 )
 
 func TestNewCompilerConsoleDebug(t *testing.T) {
-	gotString := ""
-	gologger.DefaultLogger.SetMaxLevel(levels.LevelDebug)
-	gologger.DefaultLogger.SetWriter(&noopWriter{
-		Callback: func(data []byte, level levels.Level) {
-			gotString = string(data)
-		},
-	})
-
+	vm := createNewRuntime()
+	useRuntimePool(t, vm)
 	compiler := New()
-	p, err := SourceAutoMode("console.log('hello world');", false)
-	if err != nil {
-		t.Fatal(err)
-	}
+	script := `console.log("console " + marker); require("console").warn("module " + marker); log("helper " + marker); Export(true);`
+	program, err := SourceAutoMode(script, false)
+	require.NoError(t, err)
 
-	_, err = compiler.ExecuteWithOptions(t.Context(), p, NewExecuteArgs(), &ExecuteOptions{
-		TimeoutVariants: &types.Timeouts{JsCompilerExecutionTimeout: time.Duration(20) * time.Second},
-	})
-	if err != nil {
-		t.Fatal(err)
+	var logs [2]bytes.Buffer
+	markers := []string{"first", "second"}
+	for i, marker := range markers {
+		logger := &gologger.Logger{}
+		logger.SetMaxLevel(levels.LevelDebug)
+		logger.SetFormatter(formatter.NewCLI(true))
+		logger.SetWriter(&noopWriter{Callback: func(message []byte, _ levels.Level) {
+			logs[i].Write(message)
+			logs[i].WriteByte('\n')
+		}})
+		args := NewExecuteArgs()
+		args.Args["marker"] = marker
+		_, err := compiler.ExecuteWithOptions(t.Context(), program, args, &ExecuteOptions{
+			Logger:          logger,
+			Source:          &script,
+			TimeoutVariants: &types.Timeouts{JsCompilerExecutionTimeout: 5 * time.Second},
+		})
+		require.NoError(t, err)
+		_, retained := vm.GetContextValue("ctx")
+		require.False(t, retained)
 	}
-	if !strings.HasSuffix(gotString, "hello world") {
-		t.Fatalf("console.log not working, got=%v", gotString)
+	for i, marker := range markers {
+		require.Contains(t, logs[i].String(), "console "+marker)
+		require.Contains(t, logs[i].String(), "module "+marker)
+		require.Contains(t, logs[i].String(), "helper "+marker)
+		require.NotContains(t, logs[i].String(), markers[1-i])
 	}
 }
 

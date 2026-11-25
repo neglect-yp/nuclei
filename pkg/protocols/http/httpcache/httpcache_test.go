@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils/httpbody"
 	"go.dw1.io/x/net/http/cache"
 )
@@ -53,7 +54,7 @@ func TestClientsShareCache(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	c := openCache(filepath.Join(t.TempDir(), "snapshot"))
+	c := openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot"))
 	a := &countingTransport{next: ts.Client().Transport}
 	b := &countingTransport{next: ts.Client().Transport}
 	clientA := newCachingTransport(c, a)
@@ -86,7 +87,7 @@ func TestEmptyRequestBodyUsesCache(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	rt := newCachingTransport(openCache(filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
+	rt := newCachingTransport(openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
 	for range 2 {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, ts.URL, httpbody.New(nil))
 		if err != nil {
@@ -116,7 +117,7 @@ func TestEmptyPOSTBodySentUnchanged(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	cached := newCachingTransport(openCache(filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
+	cached := newCachingTransport(openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
 	for _, rt := range []http.RoundTripper{ts.Client().Transport, cached} {
 		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, ts.URL, httpbody.New(nil))
 		if err != nil {
@@ -151,7 +152,7 @@ func TestSnapshotSurvivesReopen(t *testing.T) {
 	t.Cleanup(ts.Close)
 
 	path := filepath.Join(t.TempDir(), "httpcache", "snapshot")
-	first := openCache(path)
+	first := openCache(gologger.DefaultLogger, path)
 	firstClient := newCachingTransport(first, ts.Client().Transport)
 	if body := get(t, firstClient, ts.URL); body != "body" {
 		t.Fatalf("body = %q", body)
@@ -163,7 +164,7 @@ func TestSnapshotSurvivesReopen(t *testing.T) {
 	// The conditional request must go through the next RoundTripper given to
 	// WithNext.
 	client := &countingTransport{next: ts.Client().Transport}
-	reopened := newCachingTransport(openCache(path), client)
+	reopened := newCachingTransport(openCache(gologger.DefaultLogger, path), client)
 	if body := get(t, reopened, ts.URL); body != "body" {
 		t.Fatalf("body after reopen = %q, want the snapshot's", body)
 	}
@@ -196,7 +197,7 @@ func TestCorruptSnapshotStartsEmpty(t *testing.T) {
 		t.Fatalf("loadSnapshot error = %v, want ErrInvalidSnapshot", err)
 	}
 
-	rt := newCachingTransport(openCache(path), ts.Client().Transport)
+	rt := newCachingTransport(openCache(gologger.DefaultLogger, path), ts.Client().Transport)
 	if body := get(t, rt, ts.URL); body != "ok" {
 		t.Fatalf("body = %q", body)
 	}
@@ -212,7 +213,7 @@ func TestCacheHitSkipsOriginAndBackoffSignal(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	rt := newCachingTransport(openCache(filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
+	rt := newCachingTransport(openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
 	first := roundTrip(t, rt, ts.URL, nil)
 	if body := bodyOf(t, first); body != "busy" {
 		t.Fatalf("body = %q", body)
@@ -244,7 +245,7 @@ func TestIdentityHeadersSkipCache(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	rt := newCachingTransport(openCache(filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
+	rt := newCachingTransport(openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
 	if body := bodyOf(t, roundTrip(t, rt, ts.URL, nil)); body != "1 " {
 		t.Fatalf("anonymous body = %q, want 1", body)
 	}
@@ -273,7 +274,7 @@ func TestNonCanonicalIdentitySkipsCache(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	rt := newCachingTransport(openCache(filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
+	rt := newCachingTransport(openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
 	if body := bodyOf(t, roundTrip(t, rt, ts.URL, nil)); body != "1" {
 		t.Fatalf("anonymous body = %q", body)
 	}
@@ -304,7 +305,7 @@ func TestSetCookieIsNotReplayed(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	rt := newCachingTransport(openCache(filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
+	rt := newCachingTransport(openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
 	first := roundTrip(t, rt, ts.URL, nil)
 	if body := bodyOf(t, first); body != "page" {
 		t.Fatalf("body = %q", body)
@@ -333,7 +334,7 @@ func TestCredentialedPostInvalidatesCache(t *testing.T) {
 	}))
 	t.Cleanup(ts.Close)
 
-	rt := newCachingTransport(openCache(filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
+	rt := newCachingTransport(openCache(gologger.DefaultLogger, filepath.Join(t.TempDir(), "snapshot")), ts.Client().Transport)
 	if body := bodyOf(t, roundTrip(t, rt, ts.URL, nil)); body != "GET 1" {
 		t.Fatalf("first body = %q", body)
 	}

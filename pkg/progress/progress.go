@@ -11,6 +11,7 @@ import (
 
 	"github.com/projectdiscovery/clistats"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils/json"
 )
 
@@ -71,6 +72,7 @@ var (
 
 // StatsTicker is a progress instance for showing program stats
 type StatsTicker struct {
+	logger       *gologger.Logger
 	cloud        bool
 	active       bool
 	outputJSON   bool
@@ -108,6 +110,10 @@ func (l *liveTime) MarshalJSON() ([]byte, error) { return json.Marshal(l.get()) 
 
 // NewStatsTicker creates and returns a new progress tracking object.
 func NewStatsTicker(duration int, active, outputJSON, cloud bool, port int) (Progress, error) {
+	return NewStatsTickerWithLogger(duration, active, outputJSON, cloud, port, gologger.DefaultLogger)
+}
+
+func NewStatsTickerWithLogger(duration int, active, outputJSON, cloud bool, port int, logger *gologger.Logger) (Progress, error) {
 	var tickDuration time.Duration
 	if active && duration != -1 {
 		tickDuration = time.Duration(duration) * time.Second
@@ -115,7 +121,7 @@ func NewStatsTicker(duration int, active, outputJSON, cloud bool, port int) (Pro
 		tickDuration = -1
 	}
 
-	progress := &StatsTicker{}
+	progress := &StatsTicker{logger: logging.OrDefault(logger)}
 
 	statsOpts := &clistats.DefaultOptions
 	statsOpts.ListenPort = port
@@ -127,7 +133,7 @@ func NewStatsTicker(duration int, active, outputJSON, cloud bool, port int) (Pro
 		return nil, err
 	}
 	// only print in verbose mode
-	gologger.Verbose().Msgf("Started metrics server at localhost:%v", stats.Options.ListenPort)
+	progress.logger.Verbose().Msgf("Started metrics server at localhost:%v", stats.Options.ListenPort)
 	progress.cloud = cloud
 	progress.active = active
 	progress.stats = stats
@@ -207,14 +213,14 @@ func (p *StatsTicker) start() {
 		}
 		p.stats.AddDynamic("summary", printCallbackFunc)
 		if err := p.stats.Start(); err != nil {
-			gologger.Warning().Msgf("Couldn't start statistics: %s", err)
+			logging.OrDefault(p.logger).Warning().Msgf("Couldn't start statistics: %s", err)
 		}
 
 		if p.tickDuration > 0 {
 			// Note: this is needed and is responsible for the tick event
 			p.stats.GetStatResponse(p.tickDuration, func(s string, err error) error {
 				if err != nil {
-					gologger.Warning().Msgf("Could not read statistics: %s\n", err)
+					logging.OrDefault(p.logger).Warning().Msgf("Could not read statistics: %s\n", err)
 				}
 				return nil
 			})
@@ -466,7 +472,7 @@ func (p *StatsTicker) Stop() {
 			p.makePrintCallback()(p.stats)
 		}
 		if err := p.stats.Stop(); err != nil {
-			gologger.Warning().Msgf("Couldn't stop statistics: %s", err)
+			logging.OrDefault(p.logger).Warning().Msgf("Couldn't stop statistics: %s", err)
 		}
 	}
 }

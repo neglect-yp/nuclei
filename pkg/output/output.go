@@ -18,6 +18,7 @@ import (
 
 	"github.com/logrusorgru/aurora/v4"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"go.uber.org/multierr"
 
 	"github.com/projectdiscovery/gologger"
@@ -67,6 +68,7 @@ type Writer interface {
 
 // StandardWriter is a writer writing output to file and screen for results.
 type StandardWriter struct {
+	logger                *gologger.Logger
 	json                  bool
 	jsonReqResp           bool
 	timestamp             bool
@@ -305,11 +307,12 @@ func NewStandardWriter(options *types.Options) (*StandardWriter, error) {
 	// Try to create output folder if it doesn't exist
 	if options.StoreResponse && !fileutil.FolderExists(options.StoreResponseDir) {
 		if err := fileutil.CreateFolder(options.StoreResponseDir); err != nil {
-			gologger.Fatal().Msgf("Could not create output directory '%s': %s\n", options.StoreResponseDir, err)
+			options.GetLogger().Fatal().Msgf("Could not create output directory '%s': %s\n", options.StoreResponseDir, err)
 		}
 	}
 
 	writer := &StandardWriter{
+		logger:            options.GetLogger(),
 		json:              options.JSONL,
 		jsonReqResp:       !options.OmitRawRequests,
 		noMetadata:        options.NoMeta,
@@ -369,7 +372,7 @@ func (w *StandardWriter) Write(event *ResultEvent) error {
 			justFlagged := w.honeypotDetector.RecordMatch(hostKey, event.TemplateID)
 			if justFlagged {
 				normalized := honeypotdetector.NormalizeHostKey(hostKey)
-				gologger.Warning().Msgf("Potential honeypot detected: %s (matched %d distinct templates)", normalized, w.honeypotThreshold)
+				logging.OrDefault(w.logger).Warning().Msgf("Potential honeypot detected: %s (matched %d distinct templates)", normalized, w.honeypotThreshold)
 			}
 
 			if w.suppressHoneypot && w.honeypotDetector.IsFlagged(hostKey) {
@@ -740,7 +743,7 @@ func (w *StandardWriter) WriteStoreDebugData(host, templateID, eventType string,
 		filename = filepath.Join(subFolder, fmt.Sprintf("%s.txt", filename))
 		f, err := os.OpenFile(filename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 		if err != nil {
-			gologger.Error().Msgf("Could not open debug output file: %s", err)
+			logging.OrDefault(w.logger).Error().Msgf("Could not open debug output file: %s", err)
 			return
 		}
 		_, _ = fmt.Fprintln(f, data)

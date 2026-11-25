@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora/v4"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/internal/tests/testutils"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/loader"
 	"github.com/projectdiscovery/nuclei/v3/pkg/core"
@@ -35,6 +36,7 @@ func createEphemeralObjects(ctx context.Context, base *NucleiEngine, opts *types
 	u.executerOpts = &protocols.ExecutorOptions{
 		Output:       outputWriter,
 		Options:      opts,
+		Logger:       opts.GetLogger(),
 		Progress:     base.customProgress,
 		Catalog:      base.catalog,
 		IssuesClient: base.rc,
@@ -152,10 +154,8 @@ func NewThreadSafeNucleiEngineCtx(ctx context.Context, opts ...NucleiSDKOptions)
 		ctx:    ctx,
 		Logger: defaultOptions.Logger,
 	}
-	for _, option := range opts {
-		if err := option(e); err != nil {
-			return nil, err
-		}
+	if err := e.applyOptions(opts); err != nil {
+		return nil, err
 	}
 	if err := e.init(ctx); err != nil {
 		return nil, err
@@ -186,11 +186,9 @@ func (e *ThreadSafeNucleiEngine) GlobalResultCallback(callback func(event *outpu
 // GlobalResultCallback). Not all options are thread-safe.
 func (e *ThreadSafeNucleiEngine) ExecuteNucleiWithOptsCtx(ctx context.Context, targets []string, opts ...NucleiSDKOptions) error {
 	baseOpts := e.eng.opts.Copy()
-	tmpEngine := &NucleiEngine{opts: baseOpts, mode: threadSafe}
-	for _, option := range opts {
-		if err := option(tmpEngine); err != nil {
-			return err
-		}
+	tmpEngine := &NucleiEngine{opts: baseOpts, mode: threadSafe, Logger: baseOpts.GetLogger(), loggerOverridden: e.eng.loggerOverridden}
+	if err := tmpEngine.applyOptions(opts); err != nil {
+		return err
 	}
 	// Per-execution options land on a COPY of the engine's options, so an option
 	// that assigns a whole filter set clears every field it does not name —
@@ -242,7 +240,7 @@ func (e *ThreadSafeNucleiEngine) ExecuteNucleiWithOptsCtx(ctx context.Context, t
 	engine := core.New(tmpEngine.opts)
 	engine.SetExecuterOptions(unsafeOpts.executerOpts)
 
-	_ = engine.ExecuteScanWithOpts(ctx, store.Templates(), inputProvider, false)
+	_ = engine.ExecuteScanWithOpts(logging.WithLogger(ctx, tmpEngine.Logger), store.Templates(), inputProvider, false)
 
 	engine.WorkPool().Wait()
 	return nil

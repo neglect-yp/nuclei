@@ -64,6 +64,10 @@ func (t *HTTPToHTTPSPortTracker) cache() *lru.Cache[string, struct{}] {
 
 // RecordHTTPToHTTPSPort records that a host:port requires HTTPS
 func (t *HTTPToHTTPSPortTracker) RecordHTTPToHTTPSPort(hostPort string) {
+	t.RecordHTTPToHTTPSPortWithLogger(hostPort, gologger.DefaultLogger)
+}
+
+func (t *HTTPToHTTPSPortTracker) RecordHTTPToHTTPSPortWithLogger(hostPort string, logger *gologger.Logger) {
 	if hostPort == "" {
 		return
 	}
@@ -85,7 +89,7 @@ func (t *HTTPToHTTPSPortTracker) RecordHTTPToHTTPSPort(hostPort string) {
 	}
 	t.totalDetections.Add(1)
 
-	gologger.Debug().Msgf("[http-to-https-tracker] Detected HTTP-to-HTTPS port mismatch for %s", normalizedHostPort)
+	logger.Debug().Msgf("[http-to-https-tracker] Detected HTTP-to-HTTPS port mismatch for %s", normalizedHostPort)
 }
 
 // RequiresHTTPS checks if a host:port requires HTTPS
@@ -116,6 +120,10 @@ func (t *HTTPToHTTPSPortTracker) RecordCorrection() {
 // evicted so subsequent requests (including those from unrelated templates)
 // against the same host:port are not silently broken.
 func (t *HTTPToHTTPSPortTracker) Evict(hostPort string) {
+	t.EvictWithLogger(hostPort, gologger.DefaultLogger)
+}
+
+func (t *HTTPToHTTPSPortTracker) EvictWithLogger(hostPort string, logger *gologger.Logger) {
 	if hostPort == "" {
 		return
 	}
@@ -126,7 +134,7 @@ func (t *HTTPToHTTPSPortTracker) Evict(hostPort string) {
 	}
 
 	if present := t.cache().Remove(normalizedHostPort); present {
-		gologger.Debug().Msgf("[http-to-https-tracker] Reverted HTTP-to-HTTPS for %s (https attempt failed, falling back to http)", normalizedHostPort)
+		logger.Debug().Msgf("[http-to-https-tracker] Reverted HTTP-to-HTTPS for %s (https attempt failed, falling back to http)", normalizedHostPort)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"github.com/leslie-qiwa/flat"
 	"github.com/logrusorgru/aurora/v4"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/dataformat"
 )
 
@@ -16,6 +17,7 @@ import (
 // It is a type of container that is used to represent
 // all the data values that are used in a request.
 type Value struct {
+	logger     *gologger.Logger
 	data       string
 	parsed     dataformat.KV
 	dataFormat string
@@ -24,10 +26,14 @@ type Value struct {
 
 // NewValue returns a new value component
 func NewValue(data string) *Value {
+	return newValue(data, gologger.DefaultLogger)
+}
+
+func newValue(data string, logger *gologger.Logger) *Value {
 	if data == "" {
-		return &Value{}
+		return &Value{logger: logger}
 	}
-	v := &Value{data: data}
+	v := &Value{data: data, logger: logger}
 
 	// Do any dataformat decoding on the data if needed
 	decodedDataformat, err := dataformat.Decode(data)
@@ -40,6 +46,7 @@ func NewValue(data string) *Value {
 // Clones current state of this value
 func (v *Value) Clone() *Value {
 	return &Value{
+		logger:     v.logger,
 		data:       v.data,
 		parsed:     v.parsed.Clone(),
 		dataFormat: v.dataFormat,
@@ -93,13 +100,13 @@ func (v *Value) SetParsedValue(key, value string) bool {
 
 	// If the value is a list, append to it
 	// otherwise replace it
-	switch v := origValue.(type) {
+	switch typed := origValue.(type) {
 	case []interface{}:
 		// update last value
-		if len(v) > 0 {
-			v[len(v)-1] = value
+		if len(typed) > 0 {
+			typed[len(typed)-1] = value
 		}
-		origValue = v
+		origValue = typed
 	case string:
 		origValue = value
 	case int, int32, int64, float32, float64:
@@ -116,14 +123,14 @@ func (v *Value) SetParsedValue(key, value string) bool {
 		origValue = parsed
 	default:
 		// explicitly check for typed slice
-		if val, ok := IsTypedSlice(v); ok {
+		if val, ok := IsTypedSlice(typed); ok {
 			if len(val) > 0 {
 				val[len(val)-1] = value
 			}
 			origValue = val
 		} else {
 			// make it default warning instead of error
-			gologger.DefaultLogger.Print().Msgf("[%v] unknown type %T for value %s", aurora.BrightYellow("WARN"), v, v)
+			logging.OrDefault(v.logger).Print().Msgf("[%v] unknown type %T for value %s", aurora.BrightYellow("WARN"), typed, typed)
 		}
 	}
 	v.parsed.Set(key, origValue)
@@ -138,8 +145,15 @@ func (v *Value) Delete(key string) bool {
 // Encode encodes the value into a string
 // using the dataformat and encoding
 func (v *Value) encode(data dataformat.KV) (string, error) {
-	if v.encoder != nil {
-		return v.encoder.Encode(data)
+	encoder := v.encoder
+	if encoder == nil {
+		encoder = dataformat.Get(v.dataFormat)
+	}
+	if form, ok := encoder.(*dataformat.Form); ok {
+		return form.EncodeWithLogger(data, logging.OrDefault(v.logger))
+	}
+	if encoder != nil {
+		return encoder.Encode(data)
 	}
 	return dataformat.Encode(data, v.dataFormat)
 }

@@ -12,7 +12,7 @@ import (
 
 	"github.com/logrusorgru/aurora/v4"
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/loader"
 	"github.com/projectdiscovery/nuclei/v3/pkg/core"
@@ -79,7 +79,7 @@ func New(opts Options) (*Service, error) {
 		_ = file.Close()
 	}
 	if opts.ExecuterOpts.Options.Verbose {
-		gologger.Verbose().Msgf("Normalized mapping (%d): %v\n", len(mappingData), mappingData)
+		opts.ExecuterOpts.GetLogger().Verbose().Msgf("Normalized mapping (%d): %v\n", len(mappingData), mappingData)
 	}
 
 	// get template directories
@@ -125,7 +125,7 @@ func (s *Service) Close() bool {
 
 // Execute automatic scan on each target with -bs host concurrency
 func (s *Service) Execute(ctx context.Context) error {
-	gologger.Info().Msgf("Executing Automatic scan on %d target[s]", s.target.Count())
+	s.opts.GetLogger().Info().Msgf("Executing Automatic scan on %d target[s]", s.target.Count())
 	if s.opts.Progress != nil {
 		s.opts.Progress.AddToTotal(int64(getRequestCount(s.techTemplates)) * s.target.Count())
 	}
@@ -176,26 +176,26 @@ func (s *Service) executeAutomaticScanOnTarget(ctx context.Context, input *conte
 	}
 	finalTags = sliceutil.Dedupe(finalTags)
 
-	gologger.Info().Msgf("Found %d tags and %d matches on detection templates on %v [wappalyzer: %d, detection: %d]\n", len(finalTags), matched, input.Input, len(tagsFromWappalyzer), len(tagsFromDetectTemplates))
+	s.opts.GetLogger().Info().Msgf("Found %d tags and %d matches on detection templates on %v [wappalyzer: %d, detection: %d]\n", len(finalTags), matched, input.Input, len(tagsFromWappalyzer), len(tagsFromDetectTemplates))
 
 	// also include any extra tags passed by user
 	finalTags = append(finalTags, s.opts.Options.Tags...)
 	finalTags = sliceutil.Dedupe(finalTags)
 
 	if len(finalTags) == 0 {
-		gologger.Warning().Msgf("Skipping automatic scan since no tags were found on %v\n", input.Input)
+		s.opts.GetLogger().Warning().Msgf("Skipping automatic scan since no tags were found on %v\n", input.Input)
 		return
 	}
 	if s.opts.Options.VerboseVerbose {
-		gologger.Print().Msgf("Final tags identified for %v: %+v\n", input.Input, finalTags)
+		logging.Print(s.opts.GetLogger()).Msgf("Final tags identified for %v: %+v\n", input.Input, finalTags)
 	}
 
 	finalTemplates, err := LoadTemplatesWithTags(s.ServiceOpts, s.templateDirs, finalTags, false)
 	if err != nil {
-		gologger.Error().Msgf("%v Error loading templates: %s\n", input.Input, err)
+		s.opts.GetLogger().Error().Msgf("%v Error loading templates: %s\n", input.Input, err)
 		return
 	}
-	gologger.Info().Msgf("Executing %d templates on %v", len(finalTemplates), input.Input)
+	s.opts.GetLogger().Info().Msgf("Executing %d templates on %v", len(finalTemplates), input.Input)
 	eng := core.New(s.opts.Options)
 	execOptions := s.opts.Copy()
 	if s.opts.Progress != nil {
@@ -242,7 +242,7 @@ func (s *Service) getTagsUsingWappalyzer(input *contextargs.MetaInput) []string 
 	for k := range fingerprints {
 		normalized[normalizeAppName(k)] = struct{}{}
 	}
-	gologger.Verbose().Msgf("Found %d fingerprints for %s\n", len(normalized), input.Input)
+	s.opts.GetLogger().Verbose().Msgf("Found %d fingerprints for %s\n", len(normalized), input.Input)
 
 	// normalize fingerprints using mapping data
 	for k := range normalized {
@@ -277,7 +277,7 @@ func (s *Service) getTagsUsingDetectionTemplates(ctx context.Context, input *con
 
 	sg, err := syncutil.New(syncutil.WithSize(templateThreads)) //nolint:varnamelen // sg names the group throughout
 	if err != nil {
-		gologger.Error().Msgf("Could not create detection template group for %v: %s\n", input.Input, err)
+		s.opts.GetLogger().Error().Msgf("Could not create detection template group for %v: %s\n", input.Input, err)
 
 		return nil, 0
 	}
@@ -327,13 +327,13 @@ func (s *Service) getTagsUsingDetectionTemplates(ctx context.Context, input *con
 					_ = counter.Add(1)
 
 					// TBD: should we show or hide tech detection results? what about matcher-status flag?
-					_ = writer.WriteResult(event, s.opts.Output, s.opts.Progress, s.opts.IssuesClient)
+					_ = writer.WriteResultWithLogger(event, s.opts.Output, s.opts.Progress, s.opts.IssuesClient, s.opts.GetLogger())
 				}
 			}
 
 			_, err := template.Executer.ExecuteWithResults(ctx)
 			if err != nil {
-				gologger.Verbose().Msgf("[%s] error executing template: %s\n", aurora.BrightYellow(template.ID), err)
+				s.opts.GetLogger().Verbose().Msgf("[%s] error executing template: %s\n", aurora.BrightYellow(template.ID), err)
 				return
 			}
 		}(t)

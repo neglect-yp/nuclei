@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/dataformat"
 	"github.com/projectdiscovery/retryablehttp-go"
 	urlutil "github.com/projectdiscovery/utils/url"
@@ -35,7 +36,7 @@ func (q *Path) Name() string {
 func (q *Path) Parse(req *retryablehttp.Request) (bool, error) {
 	q.req = req
 	q.originalPath = req.Path
-	q.value = NewValue("")
+	q.value = newValue("", logging.FromContext(req.Context()))
 
 	split := strings.Split(req.Path, "/")
 	values := make(map[string]interface{})

@@ -57,12 +57,16 @@ func HasOfflineHTTPResponse(meta *contextargs.MetaInput, proto templateTypes.Pro
 // A skip for an unresponsive address gets no warning, like the engine's own
 // skip of a target.
 func LogRequestError(ctx *scan.ScanContext, templateID string, err error) {
+	LogRequestErrorWithLogger(ctx, templateID, err, gologger.DefaultLogger)
+}
+
+func LogRequestErrorWithLogger(ctx *scan.ScanContext, templateID string, err error, logger *gologger.Logger) {
 	ctx.LogError(err)
 
 	if errors.Is(err, hosterrorscache.ErrUnresponsiveHost) {
 		return
 	}
 
-	gologger.Warning().Msgf("[%s] Could not execute request for %s: %s\n",
+	logger.Warning().Msgf("[%s] Could not execute request for %s: %s\n",
 		templateID, ctx.Input.MetaInput.PrettyPrint(), err)
 }

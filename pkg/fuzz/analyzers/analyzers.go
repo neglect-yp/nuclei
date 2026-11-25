@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz"
 	"github.com/projectdiscovery/retryablehttp-go"
 )
@@ -19,6 +20,18 @@ type Analyzer interface {
 	ApplyInitialTransformation(data string, params map[string]interface{}) string
 	// Analyze is the main function for the analyzer
 	Analyze(options *Options) (bool, string, error)
+}
+
+// InitialTransformation binds diagnostics for analyzers that emit them.
+func InitialTransformation(analyzer Analyzer, logger *gologger.Logger) func(string, map[string]interface{}) string {
+	if bound, ok := analyzer.(interface {
+		ApplyInitialTransformationWithLogger(string, map[string]interface{}, *gologger.Logger) string
+	}); ok {
+		return func(data string, params map[string]interface{}) string {
+			return bound.ApplyInitialTransformationWithLogger(data, params, logger)
+		}
+	}
+	return analyzer.ApplyInitialTransformation
 }
 
 // AnalyzerTemplate is the template for the analyzer
@@ -58,6 +71,7 @@ func init() {
 
 // Options contains the options for the analyzer
 type Options struct {
+	Logger             *gologger.Logger
 	FuzzGenerated      fuzz.GeneratedRequest
 	HttpClient         *retryablehttp.Client
 	ResponseTimeDelay  time.Duration

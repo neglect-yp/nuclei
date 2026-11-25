@@ -5,9 +5,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
+
 	"github.com/openrdap/rdap"
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/extractors"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/matchers"
@@ -90,6 +92,10 @@ func (request *Request) GetID() string {
 	return request.ID
 }
 
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
+}
+
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
 func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
 	// generate variables
@@ -109,7 +115,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 	variables = generators.MergeMaps(variables, request.options.Constants)
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("Whois Protocol request variables: %s\n", vardump.DumpVariables(variables))
+		request.GetLogger().Debug().Msgf("Whois Protocol request variables: %s\n", vardump.DumpVariables(variables))
 	}
 
 	// and replace placeholders
@@ -134,9 +140,9 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 	if err != nil {
 		return errors.Wrap(err, "could not make whois request")
 	}
-	gologger.Verbose().Msgf("Sent WHOIS request to %s", query)
+	request.GetLogger().Verbose().Msgf("Sent WHOIS request to %s", query)
 	if request.options.Options.Debug || request.options.Options.DebugRequests {
-		gologger.Debug().Msgf("[%s] Dumped WHOIS request for %s", request.options.TemplateID, query)
+		request.GetLogger().Debug().Msgf("[%s] Dumped WHOIS request for %s", request.options.TemplateID, query)
 	}
 
 	data := make(map[string]interface{})
@@ -175,8 +181,8 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 
 	event := eventcreator.CreateEvent(request, data, request.options.Options.Debug || request.options.Options.DebugResponse)
 	if request.options.Options.Debug || request.options.Options.DebugResponse {
-		gologger.Debug().Msgf("[%s] Dumped WHOIS response for %s", request.options.TemplateID, query)
-		gologger.Print().Msgf("%s", responsehighlighter.Highlight(event.OperatorsResult, jsonDataString, request.options.Options.NoColor, false))
+		request.GetLogger().Debug().Msgf("[%s] Dumped WHOIS response for %s", request.options.TemplateID, query)
+		logging.Print(request.GetLogger()).Msgf("%s", responsehighlighter.Highlight(event.OperatorsResult, jsonDataString, request.options.Options.NoColor, false))
 	}
 
 	callback(event)

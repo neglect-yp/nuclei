@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/projectdiscovery/goja"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/pkg/js/gojs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/js/utils"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
 )
@@ -94,7 +94,7 @@ func NewClient(call goja.ConstructorCall, runtime *goja.Runtime) *goja.Object {
 	executionId := c.nj.ExecutionId()
 	dialers := protocolstate.GetDialersWithId(executionId)
 	if dialers == nil {
-		gologger.Error().Msgf("dialers with executionId %s not found", executionId)
+		gojs.RuntimeLogger(runtime).Error().Msgf("dialers with executionId %s not found", executionId)
 		return nil
 	}
 

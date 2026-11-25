@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/proto"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/generators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
@@ -120,7 +119,7 @@ func (i *Instance) Run(ctx *contextargs.Context, actions []*Action, payloads map
 	variables = generators.MergeMaps(variables, payloads)
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("Headless Protocol request variables: %s\n", vardump.DumpVariables(variables))
+		options.Options.GetLogger().Debug().Msgf("Headless Protocol request variables: %s\n", vardump.DumpVariables(variables))
 	}
 
 	createdPage.payloads = payloads

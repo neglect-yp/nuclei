@@ -5,7 +5,7 @@ import (
 
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
-	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/render"
+	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/expressions"
 )
 
 // renderInfo fills the {{placeholders}} in the free text of each result's info
@@ -16,7 +16,7 @@ import (
 // Each result holds its own copy of the info, so the template is never changed.
 // When filling changes the text, the result keeps the info as written in
 // TemplateInfo.
-func renderInfo(results []*output.ResultEvent, data map[string]interface{}) []*output.ResultEvent {
+func renderInfo(logger *gologger.Logger, results []*output.ResultEvent, data map[string]interface{}) []*output.ResultEvent {
 	// A global matcher matches on another template's event, with that template's
 	// payloads, variables and extracted values, so only the result fields fill
 	// its info.
@@ -31,7 +31,7 @@ func renderInfo(results []*output.ResultEvent, data map[string]interface{}) []*o
 		values := infoValues(result, data)
 		for _, field := range result.Info.PlaceholderFields() {
 			if field.HasPlaceholders() {
-				*field.Value = renderInfoText(result.TemplateID, *field.Value, values)
+				*field.Value = renderInfoText(logger, result.TemplateID, *field.Value, values)
 			}
 		}
 		if len(result.Info.FilledFields(&written)) > 0 {
@@ -70,11 +70,11 @@ func infoValues(result *output.ResultEvent, data map[string]interface{}) map[str
 // options are left out, so network helpers stay denied while results are built.
 // If an expression fails, the text stays as written, as a word matcher's does:
 // a typo in the template must not cost the finding.
-func renderInfoText(templateID, text string, values map[string]interface{}) string {
-	rendered, err := render.Render(render.Input{Text: text, Values: values})
+func renderInfoText(logger *gologger.Logger, templateID, text string, values map[string]interface{}) string {
+	rendered, err := expressions.EvaluateWithLogger(text, values, logger)
 	if err != nil {
-		gologger.Verbose().Msgf("[%s] Could not render template info: %s\n", templateID, err)
+		logger.Verbose().Msgf("[%s] Could not render template info: %s\n", templateID, err)
 		return text
 	}
-	return rendered.Text
+	return rendered
 }

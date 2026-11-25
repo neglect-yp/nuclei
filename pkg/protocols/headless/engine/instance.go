@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-rod/rod"
 	"github.com/go-rod/rod/lib/utils"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/interactsh"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/render"
 )
@@ -63,7 +62,7 @@ func (b *Browser) NewInstanceWithContext(ctx context.Context, timeout time.Durat
 			return
 		}
 		if err := instance.Close(); err != nil {
-			gologger.Warning().Msgf("Could not close canceled browser instance: %s", err)
+			b.options.GetLogger().Warning().Msgf("Could not close canceled browser instance: %s", err)
 		}
 	}
 

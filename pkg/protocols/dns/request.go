@@ -10,9 +10,9 @@ import (
 
 	"github.com/miekg/dns"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"go.uber.org/multierr"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
@@ -119,7 +119,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, metadata,
 func (request *Request) execute(input *contextargs.Context, domain string, metadata, previous output.InternalEvent, vars map[string]interface{}, callback protocols.OutputEventCallback) error {
 	var err error
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("DNS Protocol request variables: %s\n", vardump.DumpVariables(vars))
+		request.GetLogger().Debug().Msgf("DNS Protocol request variables: %s\n", vardump.DumpVariables(vars))
 	}
 
 	// Compile each request for the template based on the URL
@@ -140,7 +140,7 @@ func (request *Request) execute(input *contextargs.Context, domain string, metad
 		// to resolve. See https://github.com/projectdiscovery/nuclei/issues/7374.
 		resolverVars := generators.MergeMaps(vars, metadata)
 		if dnsClient, varErr = request.getDnsClient(request.options, resolverVars); varErr != nil {
-			gologger.Warning().Msgf("[%s] Could not make dns request for %s: %v\n", request.options.TemplateID, domain, varErr)
+			request.GetLogger().Warning().Msgf("[%s] Could not make dns request for %s: %v\n", request.options.TemplateID, domain, varErr)
 			return nil
 		}
 	}
@@ -154,14 +154,14 @@ func (request *Request) execute(input *contextargs.Context, domain string, metad
 
 	requestString := compiledRequest.String()
 	if varErr := expressions.ContainsUnresolvedVariables(requestString); varErr != nil {
-		gologger.Warning().Msgf("[%s] Could not make dns request for %s: %v\n", request.options.TemplateID, question, varErr)
+		request.GetLogger().Warning().Msgf("[%s] Could not make dns request for %s: %v\n", request.options.TemplateID, question, varErr)
 		return nil
 	}
 	if request.options.Options.Debug || request.options.Options.DebugRequests || request.options.Options.StoreResponse {
 		msg := fmt.Sprintf("[%s] Dumped DNS request for %s", request.options.TemplateID, question)
 		if request.options.Options.Debug || request.options.Options.DebugRequests {
-			gologger.Info().Str("domain", domain).Msg(msg)
-			gologger.Print().Msgf("%s", requestString)
+			request.GetLogger().Info().Str("domain", domain).Msg(msg)
+			logging.Print(request.GetLogger()).Msgf("%s", requestString)
 		}
 		if request.options.Options.StoreResponse {
 			request.options.Output.WriteStoreDebugData(domain, request.options.TemplateID, request.Type().String(), fmt.Sprintf("%s\n%s", msg, requestString))
@@ -190,7 +190,7 @@ func (request *Request) execute(input *contextargs.Context, domain string, metad
 	}
 
 	request.options.Output.Request(request.options.TemplatePath, domain, request.Type().String(), err)
-	gologger.Verbose().Msgf("[%s] Sent DNS request to %s\n", request.options.TemplateID, question)
+	request.GetLogger().Verbose().Msgf("[%s] Sent DNS request to %s\n", request.options.TemplateID, question)
 
 	// perform trace if necessary (excluded from duration — only the query RTT is measured)
 	var traceData *retryabledns.TraceData
@@ -252,7 +252,7 @@ func dumpResponse(event *output.InternalWrappedEvent, request *Request, _ *proto
 		highlightedResponse := responsehighlighter.Highlight(event.OperatorsResult, response, cliOptions.NoColor, hexDump)
 		msg := fmt.Sprintf("[%s] Dumped DNS response for %s\n\n%s", request.options.TemplateID, domain, highlightedResponse)
 		if cliOptions.Debug || cliOptions.DebugResponse {
-			gologger.Debug().Msg(msg)
+			request.GetLogger().Debug().Msg(msg)
 		}
 		if cliOptions.StoreResponse {
 			request.options.Output.WriteStoreDebugData(domain, request.options.TemplateID, request.Type().String(), msg)
@@ -269,6 +269,6 @@ func dumpTraceData(event *output.InternalWrappedEvent, requestOptions *protocols
 			traceData = hex.Dump([]byte(traceData))
 		}
 		highlightedResponse := responsehighlighter.Highlight(event.OperatorsResult, traceData, cliOptions.NoColor, hexDump)
-		gologger.Debug().Msgf("[%s] Dumped DNS Trace data for %s\n\n%s", requestOptions.TemplateID, domain, highlightedResponse)
+		requestOptions.GetLogger().Debug().Msgf("[%s] Dumped DNS Trace data for %s\n\n%s", requestOptions.TemplateID, domain, highlightedResponse)
 	}
 }

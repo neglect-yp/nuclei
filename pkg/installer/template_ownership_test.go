@@ -120,7 +120,7 @@ func TestBootstrapTemplateOwnershipFromArchive(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, map[string]string{"http/retired.yaml": templateDigest(releaseContents)}, manifest.Files)
 
-	require.NoError(t, reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
+	require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
 	require.NoFileExists(t, retiredTemplate, "unchanged templates retired from the legacy release should be removed")
 	require.FileExists(t, localTemplate, "files absent from the official prior release must remain unowned")
 }
@@ -198,7 +198,7 @@ func TestBootstrapTemplateOwnershipHandlesInvalidManifest(t *testing.T) {
 
 		templatePath := filepath.Join(templatesDir, "official.yaml")
 		require.NoError(t, os.WriteFile(templatePath, []byte("release contents"), 0644))
-		require.NoError(t, reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t, templatePath)))
+		require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t, templatePath)))
 		manifest, err := loadTemplateOwnership(templatesDir)
 		require.NoError(t, err)
 		require.Contains(t, manifest.Files, "official.yaml")
@@ -236,12 +236,12 @@ func TestReconcileTemplateOwnershipUsesWrittenContents(t *testing.T) {
 
 	written := map[string]string{templatePath: templateDigest(releaseContents)}
 	require.NoError(t, os.WriteFile(templatePath, localContents, 0644))
-	require.NoError(t, reconcileTemplateOwnership(templatesDir, written))
+	require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, written))
 
 	manifest, err := loadTemplateOwnership(templatesDir)
 	require.NoError(t, err)
 	require.Equal(t, written[templatePath], manifest.Files["official.yaml"])
-	require.NoError(t, reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
+	require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
 	contents, err := os.ReadFile(templatePath)
 	require.NoError(t, err)
 	require.Equal(t, localContents, contents, "a concurrent local edit must not be certified as release-owned or deleted")
@@ -266,7 +266,7 @@ func TestRecordPartialTemplateOwnershipPreservesUnvisitedPaths(t *testing.T) {
 	require.Equal(t, templateDigest([]byte("unvisited contents")), manifest.Files["unvisited.yaml"])
 	require.Equal(t, templateDigest([]byte("partially added contents")), manifest.Files["added.yaml"])
 
-	require.NoError(t, reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
+	require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
 	require.NoFileExists(t, visitedPath)
 	require.NoFileExists(t, unvisitedPath)
 	require.NoFileExists(t, addedPath, "a later release that omits the partially added path must retire it")
@@ -285,7 +285,7 @@ func TestReconcileTemplateOwnershipPreservesCurrentFileAlias(t *testing.T) {
 	}
 
 	seedTemplateOwnership(t, templatesDir, retiredPath)
-	require.NoError(t, reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t, currentPath)))
+	require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t, currentPath)))
 	require.FileExists(t, currentPath)
 	require.FileExists(t, retiredPath, "cleanup must not remove a path that aliases a current release template")
 }
@@ -298,7 +298,7 @@ func TestReconcileTemplateOwnershipPreservesNonRegularRetiredPath(t *testing.T) 
 	require.NoError(t, os.Remove(retiredPath))
 	require.NoError(t, os.Mkdir(retiredPath, 0755))
 
-	require.NoError(t, reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
+	require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
 	require.DirExists(t, retiredPath)
 	require.NoFileExists(t, filepath.Join(templatesDir, retiredTemplateQuarantinePath("retired.yaml")))
 	manifest, err := loadTemplateOwnership(templatesDir)
@@ -721,7 +721,7 @@ func TestRecoverTemplateOwnershipRestoresInterruptedQuarantine(t *testing.T) {
 	require.Equal(t, modifiedContents, contents)
 	require.NoFileExists(t, filepath.Join(templatesDir, quarantinePath))
 
-	require.NoError(t, reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
+	require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, newWrittenTemplates(t)))
 	contents, err = os.ReadFile(retiredPath)
 	require.NoError(t, err)
 	require.Equal(t, modifiedContents, contents)
@@ -957,7 +957,7 @@ info:
 		writtenTemplates := newWrittenTemplates(t, absTemplate1, absTemplate2, absTemplate3)
 
 		// Reconcile previous ownership with the current release.
-		err := reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err)
 
 		// Unchanged templates retired by the current release are removed.
@@ -990,7 +990,7 @@ info:
 		writtenTemplates := newWrittenTemplates(t)
 
 		// Reconciliation must not infer ownership by scanning the tree.
-		err := reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err)
 
 		// Verify custom template was NOT removed
@@ -1016,9 +1016,9 @@ info:
 
 		writtenTemplates := newWrittenTemplates(t, officialTemplate)
 
-		err := reconcileTemplateOwnership(templatesDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, writtenTemplates)
 		require.NoError(t, err)
-		require.NoError(t, reconcileTemplateOwnership(templatesDir, writtenTemplates), "custom template should survive subsequent updates after ownership is recorded")
+		require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, writtenTemplates), "custom template should survive subsequent updates after ownership is recorded")
 		require.FileExists(t, officialTemplate, "template from the new release should be preserved")
 		require.FileExists(t, localTemplate, "locally saved custom template should be preserved")
 	})
@@ -1032,7 +1032,7 @@ info:
 		require.NoError(t, os.WriteFile(retiredTemplate, []byte("locally modified contents"), 0644))
 
 		writtenTemplates := newWrittenTemplates(t)
-		require.NoError(t, reconcileTemplateOwnership(templatesDir, writtenTemplates))
+		require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, writtenTemplates))
 		contents, err := os.ReadFile(retiredTemplate)
 		require.NoError(t, err)
 		require.Equal(t, "locally modified contents", string(contents), "locally modified retired template should be preserved unchanged")
@@ -1058,7 +1058,7 @@ info:
 		}
 
 		writtenTemplates := newWrittenTemplates(t)
-		require.NoError(t, reconcileTemplateOwnership(templatesDir, writtenTemplates))
+		require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, writtenTemplates))
 		require.FileExists(t, externalTemplate, "ownership cleanup must remain confined to the templates directory")
 	})
 
@@ -1073,7 +1073,7 @@ info:
 		require.NoError(t, os.WriteFile(filepath.Join(templatesDir, templateOwnershipFileName), []byte(invalidManifest), 0600))
 
 		writtenTemplates := newWrittenTemplates(t)
-		require.NoError(t, reconcileTemplateOwnership(templatesDir, writtenTemplates))
+		require.NoError(t, (&TemplateManager{}).reconcileTemplateOwnership(templatesDir, writtenTemplates))
 		require.FileExists(t, externalTemplate, "invalid ownership metadata must not authorize deletion")
 		manifest, err := loadTemplateOwnership(templatesDir)
 		require.NoError(t, err)
@@ -1104,7 +1104,7 @@ info:
 
 		writtenTemplates := newWrittenTemplates(t)
 
-		err := reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err)
 
 		require.FileExists(t, customTemplate, "custom template should be preserved")
@@ -1127,7 +1127,7 @@ info:
 		writtenTemplates := newWrittenTemplates(t)
 
 		// Reconciliation preserves every unowned file.
-		err := reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err)
 
 		// Verify non-template files were NOT removed
@@ -1153,7 +1153,7 @@ info:
 		writtenTemplates := newWrittenTemplates(t)
 
 		// Reconciliation removes the unchanged template owned by the prior release.
-		err := reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err)
 
 		// The prior owned template is absent from the current release.
@@ -1175,7 +1175,7 @@ info:
 		writtenTemplates := newWrittenTemplates(t, template1)
 
 		// Reconciliation normalizes the absolute path into the relative manifest key.
-		err := reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err)
 
 		// The current release retains ownership of the template.
@@ -1208,7 +1208,7 @@ func TestReconcileTemplateOwnershipDirectoryValidation(t *testing.T) {
 		writtenTemplates := newWrittenTemplates(t)
 
 		// Reconciliation accepts an existing empty templates directory.
-		err = reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err = (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err, "reconciliation should accept an empty templates directory")
 
 		// Reconciliation does not remove the templates directory itself.
@@ -1222,7 +1222,7 @@ func TestReconcileTemplateOwnershipDirectoryValidation(t *testing.T) {
 		writtenTemplates := newWrittenTemplates(t)
 
 		// Reconciliation is only valid after the templates directory is installed.
-		err := reconcileTemplateOwnership(nonExistentDir, writtenTemplates)
+		err := (&TemplateManager{}).reconcileTemplateOwnership(nonExistentDir, writtenTemplates)
 		require.Error(t, err, "reconciliation should reject a non-existent templates directory")
 	})
 }

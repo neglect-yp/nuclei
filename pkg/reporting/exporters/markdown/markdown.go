@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/reporting/exporters/markdown/util"
@@ -27,6 +28,7 @@ type Exporter struct {
 
 // Options contains the configuration options for GitHub issue tracker client
 type Options struct {
+	Logger *gologger.Logger `yaml:"-" json:"-"`
 	// Directory is the directory to export found results to
 	Directory string `yaml:"directory"`
 	OmitRaw   bool   `yaml:"omit-raw"`
@@ -92,7 +94,7 @@ func (exporter *Exporter) Export(event *output.ResultEvent) error {
 
 		// Create the subdirectory if it does not exist
 		if err = fileutil.CreateFolders(filepath.Join(exporter.directory, subdirectory)); err != nil {
-			gologger.Warning().Msgf("Could not create subdirectory for markdown report: %s", err)
+			logging.OrDefault(exporter.options.Logger).Warning().Msgf("Could not create subdirectory for markdown report: %s", err)
 		}
 	}
 

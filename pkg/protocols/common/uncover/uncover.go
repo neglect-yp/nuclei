@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/templates"
 	"github.com/projectdiscovery/uncover"
 	"github.com/projectdiscovery/uncover/sources"
@@ -44,7 +44,7 @@ func GetTargetsFromUncover(ctx context.Context, outputFormat string, opts *uncov
 				}
 				if res.Error != nil {
 					// only log in verbose mode
-					gologger.Verbose().Msgf("uncover: %v", res.Error)
+					logging.FromContext(ctx).Verbose().Msgf("uncover: %v", res.Error)
 					continue
 				}
 				outputChan <- processUncoverOutput(res, outputFormat)
@@ -101,7 +101,7 @@ func GetUncoverTargetsFromMetadata(ctx context.Context, templates []*templates.T
 		queriesMap[engine] = sliceutil.Dedupe(queries)
 	}
 	keys := mapsutil.GetKeys(queriesMap)
-	gologger.Info().Msgf("Running uncover queries from template against: %s", strings.Join(keys, ","))
+	logging.FromContext(ctx).Info().Msgf("Running uncover queries from template against: %s", strings.Join(keys, ","))
 	result := make(chan string, runtime.NumCPU())
 	go func() {
 		defer close(result)
@@ -127,7 +127,7 @@ func GetUncoverTargetsFromMetadata(ctx context.Context, templates []*templates.T
 			}
 			ch, err := GetTargetsFromUncover(ctx, outputFormat, uncoverOpts)
 			if err != nil {
-				gologger.Error().Msgf("Could not get targets using %v engine from uncover: %s", eng, err)
+				logging.FromContext(ctx).Error().Msgf("Could not get targets using %v engine from uncover: %s", eng, err)
 				return
 			}
 

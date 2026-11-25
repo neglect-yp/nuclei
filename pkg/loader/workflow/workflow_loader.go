@@ -5,7 +5,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/loader/filter"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model"
@@ -32,6 +31,7 @@ type workflowLoader struct {
 // NewLoader returns a new workflow loader structure
 func NewLoader(options *protocols.ExecutorOptions) (model.WorkflowLoader, error) {
 	tagFilter, err := templates.NewTagFilter(&templates.TagFilterConfig{
+		Logger:            options.GetLogger(),
 		Authors:           options.Options.Authors,
 		Tags:              options.Options.Tags,
 		ExcludeTags:       options.Options.ExcludeTags,
@@ -50,6 +50,7 @@ func NewLoader(options *protocols.ExecutorOptions) (model.WorkflowLoader, error)
 	// IncludeTags is not an inclusion filter: it lifts the exclusion of the
 	// same tags
 	exclusions, err := templates.NewTagFilter(&templates.TagFilterConfig{
+		Logger:           options.GetLogger(),
 		ExcludeTags:      options.Options.ExcludeTags,
 		IncludeTags:      options.Options.IncludeTags,
 		ExcludeIds:       options.Options.ExcludeIds,
@@ -77,7 +78,7 @@ func NewLoader(options *protocols.ExecutorOptions) (model.WorkflowLoader, error)
 func (w *workflowLoader) listTemplatesDirectory() []string {
 	includedTemplates, errs := w.options.Catalog.GetTemplatesPath([]string{config.DefaultConfig.TemplatesDirectory})
 	for template, err := range errs {
-		gologger.Error().Msgf("Could not find template '%s': %s", template, err)
+		w.options.GetLogger().Error().Msgf("Could not find template '%s': %s", template, err)
 	}
 	return slices.Collect(maps.Keys(w.pathFilter.Match(includedTemplates)))
 }
@@ -135,7 +136,7 @@ func selectedByTags(template *templates.Template, tags []string) bool {
 func (w *workflowLoader) GetTemplatePaths(templatesList []string, noValidate bool) []string {
 	includedTemplates, errs := w.options.Catalog.GetTemplatesPath(templatesList)
 	for template, err := range errs {
-		gologger.Error().Msgf("Could not find template '%s': %s", template, err)
+		w.options.GetLogger().Error().Msgf("Could not find template '%s': %s", template, err)
 	}
 	templatesPathMap := w.pathFilter.Match(includedTemplates)
 
@@ -143,7 +144,7 @@ func (w *workflowLoader) GetTemplatePaths(templatesList []string, noValidate boo
 	for templatePath := range templatesPathMap {
 		matched, err := w.options.Parser.LoadTemplate(templatePath, w.filters(noValidate), nil, w.options.Catalog)
 		if err != nil && !matched {
-			gologger.Warning().Msg(err.Error())
+			w.options.GetLogger().Warning().Msg(err.Error())
 		} else if matched {
 			loadedTemplates = append(loadedTemplates, templatePath)
 		}

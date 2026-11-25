@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils"
@@ -50,11 +50,11 @@ func (r *RawFormat) Parse(input io.Reader, resultsCb formats.ParseReqRespCallbac
 	for _, request := range splitRequests(string(data)) {
 		reqResp, err := types.ParseRawRequest(terminateHeaders(request))
 		if err != nil {
-			gologger.Warning().Msgf("http: could not parse raw request in %s: %s\n", filePath, err)
+			logging.OrDefault(r.opts.Logger).Warning().Msgf("http: could not parse raw request in %s: %s\n", filePath, err)
 			continue
 		}
 		if reqResp.URL.Host == "" {
-			gologger.Warning().Msgf("http: skipped raw request in %s: no target, add a Host header or an absolute request target\n", filePath)
+			logging.OrDefault(r.opts.Logger).Warning().Msgf("http: skipped raw request in %s: no target, add a Host header or an absolute request target\n", filePath)
 			continue
 		}
 		if reqResp.URL.Scheme == "" {

@@ -3,7 +3,6 @@ package templates
 import (
 	"github.com/pkg/errors"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/keys"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
@@ -15,7 +14,7 @@ import (
 func compileWorkflow(path string, preprocessor Preprocessor, options *protocols.ExecutorOptions, workflow *workflows.Workflow, loader model.WorkflowLoader) {
 	for _, workflow := range workflow.Workflows {
 		if err := parseWorkflow(path, preprocessor, workflow, options, loader); err != nil {
-			gologger.Warning().Msgf("Could not parse workflow %s: %v\n", path, err)
+			options.GetLogger().Warning().Msgf("Could not parse workflow %s: %v\n", path, err)
 			continue
 		}
 	}
@@ -34,7 +33,7 @@ func parseWorkflow(path string, preprocessor Preprocessor, workflow *workflows.W
 	shouldNotValidate := false
 	for _, subtemplates := range workflow.Subtemplates {
 		if err := parseWorkflow(path, preprocessor, subtemplates, options, loader); err != nil {
-			gologger.Warning().Msgf("Could not parse workflow: %v\n", err)
+			options.GetLogger().Warning().Msgf("Could not parse workflow: %v\n", err)
 			continue
 		}
 		shouldNotValidate = shouldNotValidate || len(subtemplates.Executers) > 0
@@ -49,7 +48,7 @@ func parseWorkflow(path string, preprocessor Preprocessor, workflow *workflows.W
 		}
 		for _, subtemplates := range matcher.Subtemplates {
 			if err := parseWorkflow(path, preprocessor, subtemplates, options, loader); err != nil {
-				gologger.Warning().Msgf("Could not parse workflow: %v\n", err)
+				options.GetLogger().Warning().Msgf("Could not parse workflow: %v\n", err)
 				continue
 			}
 			shouldNotValidate = shouldNotValidate || len(subtemplates.Executers) > 0
@@ -61,7 +60,7 @@ func parseWorkflow(path string, preprocessor Preprocessor, workflow *workflows.W
 	// warnings show only with -v, so the count is shown after loading
 	if shouldNotValidate && len(workflow.Executers) == 0 {
 		stats.Increment(SkippedWorkflowStepStats)
-		gologger.Warning().Msgf("Workflow %s: step %s loaded no templates, so its subtemplates will not run",
+		options.GetLogger().Warning().Msgf("Workflow %s: step %s loaded no templates, so its subtemplates will not run",
 			path, describeWorkflowStep(workflow))
 	}
 	return matcherErr
@@ -95,7 +94,7 @@ func parseWorkflowTemplate(workflow *workflows.WorkflowTemplate, preprocessor Pr
 	for _, path := range paths {
 		template, err := Parse(path, preprocessor, options.Copy())
 		if err != nil {
-			gologger.Warning().Msgf("Could not parse workflow template %s: %v\n", path, err)
+			options.GetLogger().Warning().Msgf("Could not parse workflow template %s: %v\n", path, err)
 			continue
 		}
 
@@ -104,7 +103,7 @@ func parseWorkflowTemplate(workflow *workflows.WorkflowTemplate, preprocessor Pr
 		}
 
 		if template.Executer == nil {
-			gologger.Warning().Msgf("Could not parse workflow template %s: no executer found\n", path)
+			options.GetLogger().Warning().Msgf("Could not parse workflow template %s: no executer found\n", path)
 			continue
 		}
 
@@ -117,21 +116,21 @@ func parseWorkflowTemplate(workflow *workflows.WorkflowTemplate, preprocessor Pr
 		if template.HasCodeRequest() && !template.Verified {
 			// unverified code templates are not allowed in workflows
 			stats.Increment(SkippedUnverifiedCodeTemplateStats)
-			gologger.Warning().Msgf("Skipping unverified code template(s) from workflow: %v\n", path)
+			options.GetLogger().Warning().Msgf("Skipping unverified code template(s) from workflow: %v\n", path)
 			continue
 		}
 
 		if template.IsUnsignedJavascriptTemplate() {
 			// unverified javascript templates are not allowed in workflows
 			stats.Increment(SkippedUnverifiedJavascriptTemplateStats)
-			gologger.Warning().Msgf("Skipping unverified javascript template(s) from workflow: %v\n", path)
+			options.GetLogger().Warning().Msgf("Skipping unverified javascript template(s) from workflow: %v\n", path)
 			continue
 		}
 
 		if missingCaps := template.MissingLoadCapabilities(caps); len(missingCaps) > 0 {
 			for _, capability := range missingCaps {
 				stats.Increment(capability.Stat())
-				gologger.Warning().Msgf("Skipping workflow subtemplate: %s", capability.MissingFlagMessage(path))
+				options.GetLogger().Warning().Msgf("Skipping workflow subtemplate: %s", capability.MissingFlagMessage(path))
 			}
 			continue
 		}

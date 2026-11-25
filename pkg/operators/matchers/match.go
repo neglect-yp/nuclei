@@ -9,7 +9,6 @@ import (
 	"github.com/projectdiscovery/govaluate"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/common/dsl"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/expressions"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/render"
@@ -73,7 +72,7 @@ func (matcher *Matcher) MatchWordsWithOptions(corpus string, data map[string]int
 
 		result, err := render.Render(render.Input{Text: word, Values: data, Options: options})
 		if err != nil {
-			gologger.Warning().Msgf("Error while evaluating word matcher: %q", word)
+			options.GetLogger().Warning().Msgf("Error while evaluating word matcher: %q", word)
 			if matcher.condition == ANDCondition {
 				return false, []string{}
 			}
@@ -205,7 +204,7 @@ func (matcher *Matcher) MatchDSL(data map[string]interface{}) bool {
 // MatchDSLWithOptions evaluates cached expressions with the current scan's policy.
 func (matcher *Matcher) MatchDSLWithOptions(data map[string]interface{}, options *types.Options) bool {
 	logExpressionEvaluationFailure := func(matcherName string, err error) {
-		gologger.Warning().Msgf("Could not evaluate expression: %s, error: %s", matcherName, err.Error())
+		options.GetLogger().Warning().Msgf("Could not evaluate expression: %s, error: %s", matcherName, err.Error())
 	}
 
 	// Iterate over all the expressions accepted as valid
@@ -229,13 +228,13 @@ func (matcher *Matcher) MatchDSLWithOptions(data map[string]interface{}, options
 				return false
 			}
 			if !matcher.ignoreErr(err) {
-				gologger.Warning().Msgf("[%s] %s", data["template-id"], err.Error())
+				options.GetLogger().Warning().Msgf("[%s] %s", data["template-id"], err.Error())
 			}
 			continue
 		}
 
 		if boolResult, ok := result.(bool); !ok {
-			gologger.Error().Label("WRN").Msgf("[%s] The return value of a DSL statement must return a boolean value.", data["template-id"])
+			options.GetLogger().Error().Label("WRN").Msgf("[%s] The return value of a DSL statement must return a boolean value.", data["template-id"])
 			continue
 		} else if !boolResult {
 			// If we are in an AND request and a match failed,

@@ -10,6 +10,7 @@ import (
 
 	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/govaluate"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model/types/severity"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/common/dsl"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/extractors"
@@ -20,6 +21,7 @@ import (
 
 // TagFilter is used to filter nuclei templates for tag based execution
 type TagFilter struct {
+	logger            *gologger.Logger
 	allowedTags       map[string]struct{}
 	severities        map[severity.Severity]struct{}
 	excludeSeverities map[severity.Severity]struct{}
@@ -330,7 +332,7 @@ func isConditionMatch(tagFilter *TagFilter, template *Template) bool {
 		// in case of errors  => skip
 		if err != nil {
 			// Using debug as the failure here might be legitimate (eg. template not having optional metadata fields => missing required fields)
-			gologger.Debug().Msgf("The expression condition couldn't be evaluated correctly for template \"%s\": %s\n", template.ID, err)
+			logging.OrDefault(tagFilter.logger).Debug().Msgf("The expression condition couldn't be evaluated correctly for template \"%s\": %s\n", template.ID, err)
 			return false
 		}
 		resultBool, ok := result.(bool)
@@ -348,6 +350,7 @@ func isConditionMatch(tagFilter *TagFilter, template *Template) bool {
 }
 
 type TagFilterConfig struct {
+	Logger            *gologger.Logger
 	Tags              []string
 	ExcludeTags       []string
 	Authors           []string
@@ -366,6 +369,7 @@ type TagFilterConfig struct {
 // It takes into account Tags, Severities, ExcludeSeverities, Authors, IncludeTags, ExcludeTags, Conditions.
 func NewTagFilter(config *TagFilterConfig) (*TagFilter, error) {
 	filter := &TagFilter{
+		logger:            logging.OrDefault(config.Logger),
 		allowedTags:       splitCommaTrimSet(config.Tags),
 		authors:           splitCommaTrimSet(config.Authors),
 		severities:        toMap(config.Severities),
@@ -381,7 +385,7 @@ func NewTagFilter(config *TagFilterConfig) (*TagFilter, error) {
 		includeConditions: make(map[string]*govaluate.EvaluableExpression),
 	}
 	for _, includeCondition := range config.IncludeConditions {
-		compiled, err := govaluate.NewEvaluableExpressionWithFunctions(includeCondition, dsl.HelperFunctions)
+		compiled, err := govaluate.NewEvaluableExpressionWithFunctions(includeCondition, dsl.HelpersWithLogger(config.Logger))
 		if err != nil {
 			return nil, err
 		}

@@ -9,6 +9,7 @@ import (
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/ratelimit"
 	mapsutil "github.com/projectdiscovery/utils/maps"
 	stringsutil "github.com/projectdiscovery/utils/strings"
@@ -201,6 +202,7 @@ func (e *ExecutorOptions) RegisterInteractshRequest(urls []string, data *interac
 	if e == nil || e.Interactsh == nil || data == nil {
 		return
 	}
+	data.Logger = e.GetLogger()
 	data.Output = e.Output
 	data.Progress = e.Progress
 	data.IssuesClient = e.IssuesClient
@@ -543,6 +545,15 @@ type Request interface {
 	Type() templateTypes.ProtocolType
 }
 
+// RequestLogger also supports custom protocol implementations that do not
+// expose executor options.
+func RequestLogger(request Request) *gologger.Logger {
+	if provider, ok := request.(interface{ GetLogger() *gologger.Logger }); ok {
+		return logging.OrDefault(provider.GetLogger())
+	}
+	return gologger.DefaultLogger
+}
+
 // OutputEventCallback is a callback event for any results found during scanning.
 type OutputEventCallback func(result *output.InternalWrappedEvent)
 
@@ -586,7 +597,7 @@ func MakeDefaultResultEvent(request Request, wrapped *output.InternalWrappedEven
 	// rather than only the protocol that remembers to ask. Each is a no-op when
 	// it has nothing to do: no llm operator ran, or the info has no placeholders.
 	results = AttachLLMAudits(results, wrapped.InternalEvent)
-	return renderInfo(results, wrapped.InternalEvent)
+	return renderInfo(RequestLogger(request), results, wrapped.InternalEvent)
 }
 
 // MakeDefaultExtractFunc performs extracting operation for an extractor on model and returns true or false.
@@ -735,6 +746,14 @@ func (e *ExecutorOptions) ApplyNewEngineOptions(n *ExecutorOptions) {
 	e.Logger = n.Logger
 	e.CustomFastdialer = n.CustomFastdialer
 	e.ClusterMappings = n.ClusterMappings.Copy()
+}
+
+// GetLogger resolves an executor override before the scan's logger.
+func (e *ExecutorOptions) GetLogger() *gologger.Logger {
+	if e != nil && e.Logger != nil {
+		return e.Logger
+	}
+	return e.GetOptions().GetLogger()
 }
 
 // GetOptions returns scan options, or nil for an unbound executor.

@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/authprovider"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog"
 	metadataindex "github.com/projectdiscovery/nuclei/v3/pkg/catalog/index"
@@ -100,7 +101,9 @@ type NucleiEngine struct {
 	executerOpts   *protocols.ExecutorOptions
 
 	// Logger instance for the engine
-	Logger *gologger.Logger
+	Logger                *gologger.Logger
+	loggerOverridden      bool
+	adjustedMaxHostErrors []int
 
 	// Temporary directory for SDK-managed template files
 	tmpDir string
@@ -334,7 +337,7 @@ func (e *NucleiEngine) ExecuteCallbackWithCtx(ctx context.Context, callback ...f
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		_ = e.engine.ExecuteScanWithOpts(ctx, templatesAndWorkflows, e.inputProvider, false)
+		_ = e.engine.ExecuteScanWithOpts(logging.WithLogger(ctx, e.Logger), templatesAndWorkflows, e.inputProvider, false)
 	}()
 
 	// wait for context to be cancelled
@@ -385,6 +388,20 @@ func (e *NucleiEngine) Store() *loader.Store {
 	return e.store
 }
 
+func (e *NucleiEngine) applyOptions(options []NucleiSDKOptions) error {
+	for _, option := range options {
+		if err := option(e); err != nil {
+			return err
+		}
+	}
+	for _, limit := range e.adjustedMaxHostErrors {
+		e.Logger.Warning().Msg("The concurrency value is higher than max-host-error")
+		e.Logger.Info().Msgf("Adjusting max-host-error to the concurrency value: %d", limit)
+	}
+	e.adjustedMaxHostErrors = nil
+	return nil
+}
+
 // NewNucleiEngineCtx creates a new nuclei engine instance with given context
 func NewNucleiEngineCtx(ctx context.Context, options ...NucleiSDKOptions) (*NucleiEngine, error) {
 	// default options
@@ -395,10 +412,8 @@ func NewNucleiEngineCtx(ctx context.Context, options ...NucleiSDKOptions) (*Nucl
 		ctx:    ctx,
 		Logger: defaultOptions.Logger,
 	}
-	for _, option := range options {
-		if err := option(e); err != nil {
-			return nil, err
-		}
+	if err := e.applyOptions(options); err != nil {
+		return nil, err
 	}
 	if err := e.init(ctx); err != nil {
 		// init may already own interactsh, a browser, a temp dir, and

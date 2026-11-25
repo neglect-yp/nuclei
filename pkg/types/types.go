@@ -11,6 +11,8 @@ import (
 
 	"github.com/projectdiscovery/goflags"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/formatter"
+	"github.com/projectdiscovery/gologger/writer"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model/types/severity"
@@ -963,8 +965,20 @@ func (options *Options) HasClientCertificates() bool {
 	return options.ClientCertFile != "" || options.ClientCAFile != "" || options.ClientKeyFile != ""
 }
 
+// GetLogger returns the logger used for scan diagnostics, including for callers
+// that construct Options directly or call helpers without scan options.
+func (options *Options) GetLogger() *gologger.Logger {
+	if options != nil && options.Logger != nil {
+		return options.Logger
+	}
+	return gologger.DefaultLogger
+}
+
 // DefaultOptions returns default options for nuclei
 func DefaultOptions() *Options {
+	logger := &gologger.Logger{}
+	logger.SetFormatter(formatter.NewCLI(false))
+	logger.SetWriter(writer.NewCLI())
 	return &Options{
 		RateLimit:                  150,
 		RateLimitDuration:          time.Second,
@@ -982,7 +996,7 @@ func DefaultOptions() *Options {
 		ResponseSaveSize:           unitutils.Mega,
 		RequestSaveSize:            32 * unitutils.Kilo,
 		ExecutionId:                xid.New().String(),
-		Logger:                     &gologger.Logger{},
+		Logger:                     logger,
 	}
 }
 

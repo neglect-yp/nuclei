@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/logrusorgru/aurora/v4"
+	"github.com/projectdiscovery/gologger"
 
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 )
@@ -13,6 +14,10 @@ import (
 var colorFunction = aurora.Green
 
 func Highlight(operatorResult *operators.Result, response string, noColor, hexDump bool) string {
+	return HighlightWithLogger(operatorResult, response, noColor, hexDump, gologger.DefaultLogger)
+}
+
+func HighlightWithLogger(operatorResult *operators.Result, response string, noColor, hexDump bool, logger *gologger.Logger) string {
 	result := response
 	if operatorResult != nil && !noColor {
 		for _, currentMatch := range getSortedMatches(operatorResult) {
@@ -20,6 +25,8 @@ func Highlight(operatorResult *operators.Result, response string, noColor, hexDu
 				highlightedHexDump, err := toHighLightedHexDump(result, currentMatch)
 				if err == nil {
 					result = highlightedHexDump.String()
+				} else {
+					logger.Warning().Msg(err.Error())
 				}
 			} else {
 				result = highlightASCII(currentMatch, result)

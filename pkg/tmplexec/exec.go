@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/projectdiscovery/goja"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/js/compiler"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/common/dsl"
@@ -72,10 +72,10 @@ func (e *TemplateExecuter) Compile() error {
 					rawErrorMessage := dslCompilationError.Error()
 					formattedErrorMessage := strings.ToUpper(rawErrorMessage[:1]) + rawErrorMessage[1:] + "."
 
-					gologger.Warning().Msg(formattedErrorMessage)
-					gologger.Info().Msgf("The available custom DSL functions are:")
+					e.options.GetLogger().Warning().Msg(formattedErrorMessage)
+					e.options.GetLogger().Info().Msgf("The available custom DSL functions are:")
 
-					fmt.Println(dsl.GetPrintableDslFunctionSignatures(cliOptions.NoColor))
+					logging.Print(e.options.GetLogger()).Msg(dsl.GetPrintableDslFunctionSignatures(cliOptions.NoColor))
 				}
 			}
 			return err
@@ -152,7 +152,7 @@ func (e *TemplateExecuter) Execute(ctx *scan.ScanContext) (bool, error) {
 	writeFailureCallback := func(event *output.InternalWrappedEvent, matcherStatus bool) {
 		if !matched.Load() && matcherStatus {
 			if err := e.options.Output.WriteFailure(event); err != nil {
-				gologger.Warning().Msgf("Could not write failure event to output: %s\n", err)
+				e.options.GetLogger().Warning().Msgf("Could not write failure event to output: %s\n", err)
 			}
 			executed.CompareAndSwap(false, true)
 		}
@@ -193,7 +193,7 @@ func (e *TemplateExecuter) Execute(ctx *scan.ScanContext) (bool, error) {
 			// one of the templates has `global-matchers` enabled. This way,
 			// non-`global-matchers` templates can enter the `writeFailureCallback`
 			// func to log failure output.
-			wr := writer.WriteResult(event, e.options.Output, e.options.Progress, e.options.IssuesClient)
+			wr := writer.WriteResultWithLogger(event, e.options.Output, e.options.Progress, e.options.IssuesClient, e.options.GetLogger())
 			if wr && !isGlobalMatchers {
 				matched.Store(true)
 			} else {

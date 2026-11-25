@@ -400,7 +400,7 @@ func wrappedGet(options *types.Options, configuration *Configuration, host strin
 		retryableHttpOptions.Timeout = configuration.ResponseHeaderTimeout
 	}
 	if options.EnableHTTPCache && !configuration.DisableHTTPCache {
-		retryableHttpOptions.WrapTransport = httpcache.NewTransportWrapper()
+		retryableHttpOptions.WrapTransport = httpcache.NewTransportWrapperWithLogger(options.GetLogger())
 	}
 
 	maxIdleConnsPerHost := idleConnPoolSize(options.TemplateThreads, configuration.Threads)
@@ -799,7 +799,7 @@ func RecordHTTPToHTTPSPortMismatch(options *types.Options, hostname string) {
 		return
 	}
 
-	tracker.RecordHTTPToHTTPSPort(hostname)
+	tracker.RecordHTTPToHTTPSPortWithLogger(hostname, options.GetLogger())
 }
 
 // NewTLSConfig returns the TLS configuration HTTP requests to scan targets use,

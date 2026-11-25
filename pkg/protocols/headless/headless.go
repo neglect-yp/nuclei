@@ -2,6 +2,7 @@ package headless
 
 import (
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz"
 	useragent "github.com/projectdiscovery/nuclei/v3/pkg/model/types/userAgent"
@@ -99,6 +100,10 @@ type Step struct {
 // GetID returns the unique ID of the request if any.
 func (request *Request) GetID() string {
 	return request.ID
+}
+
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
 }
 
 // Compile compiles the protocol request for further execution.

@@ -6,7 +6,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/scan"
@@ -44,7 +43,7 @@ func (e *Engine) executeWorkflow(ctx *scan.ScanContext, w *workflows.Workflow) b
 		// Root steps do not own a waitgroup slot.
 		err := e.runWorkflowStep(template, newCtx, results, swg, &pending, nil)
 		if err != nil {
-			gologger.Warning().Msgf(workflowStepExecutionError, template.Template, err)
+			e.options.GetLogger().Warning().Msgf(workflowStepExecutionError, template.Template, err)
 		}
 	}
 
@@ -117,7 +116,7 @@ func (e *Engine) runWorkflowStep(
 				if len(template.Executers) == 1 {
 					mainErr = err
 				} else {
-					gologger.Warning().Msgf(workflowStepExecutionError, template.Template, err)
+					e.options.GetLogger().Warning().Msgf(workflowStepExecutionError, template.Template, err)
 				}
 				continue
 			}
@@ -166,7 +165,7 @@ func (e *Engine) runWorkflowStep(
 
 							stepErr := e.runWorkflowStep(subtemplate, subCtx, results, swg, pending, release)
 							if stepErr != nil {
-								gologger.Warning().Msgf(workflowStepExecutionError, subtemplate.Template, stepErr)
+								e.options.GetLogger().Warning().Msgf(workflowStepExecutionError, subtemplate.Template, stepErr)
 							}
 						}(subtemplate)
 					}
@@ -177,7 +176,7 @@ func (e *Engine) runWorkflowStep(
 				if len(template.Executers) == 1 {
 					mainErr = err
 				} else {
-					gologger.Warning().Msgf(workflowStepExecutionError, template.Template, err)
+					e.options.GetLogger().Warning().Msgf(workflowStepExecutionError, template.Template, err)
 				}
 				continue
 			}
@@ -206,7 +205,7 @@ func (e *Engine) runWorkflowStep(
 
 				stepErr := e.runWorkflowStep(template, subCtx, results, swg, pending, release)
 				if stepErr != nil {
-					gologger.Warning().Msgf(workflowStepExecutionError, template.Template, stepErr)
+					e.options.GetLogger().Warning().Msgf(workflowStepExecutionError, template.Template, stepErr)
 				}
 			}(subtemplate)
 		}

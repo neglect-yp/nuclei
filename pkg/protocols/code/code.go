@@ -8,11 +8,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
+
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/ditashi/jsbeautifier-go/jsbeautifier"
 	"github.com/projectdiscovery/goja"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/gozero"
 	"github.com/projectdiscovery/gozero/sandbox"
 	gozerotypes "github.com/projectdiscovery/gozero/types"
@@ -179,6 +181,10 @@ func (request *Request) GetID() string {
 	return request.ID
 }
 
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
+}
+
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
 func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) (err error) {
 	// code execution requires the -code flag, enforced here as well as in the
@@ -199,7 +205,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 	}
 	defer func() {
 		if err := metaSrc.Cleanup(); err != nil {
-			gologger.Warning().Msgf("%s\n", err)
+			request.GetLogger().Warning().Msgf("%s\n", err)
 		}
 	}()
 
@@ -228,14 +234,14 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 
 	if request.PreCondition != "" {
 		if request.options.Options.Debug || request.options.Options.DebugRequests {
-			gologger.Debug().Msgf("[%s] Executing Precondition for Code request\n", request.TemplateID)
+			request.GetLogger().Debug().Msgf("[%s] Executing Precondition for Code request\n", request.TemplateID)
 			var highlightFormatter = "terminal256"
 			if request.options.Options.NoColor {
 				highlightFormatter = "text"
 			}
 			var buff bytes.Buffer
 			_ = quick.Highlight(&buff, beautifyJavascript(request.PreCondition), "javascript", highlightFormatter, "monokai")
-			prettyPrint(request.TemplateID, buff.String())
+			request.prettyPrint(buff.String())
 		}
 
 		args := compiler.NewExecuteArgs()
@@ -243,6 +249,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 
 		result, err := request.options.JsCompiler.ExecuteWithOptions(input.Context(), request.preConditionCompiled, args,
 			&compiler.ExecuteOptions{
+				Logger:          request.GetLogger(),
 				ExecutionId:     request.options.Options.ExecutionId,
 				TimeoutVariants: request.options.Options.GetTimeouts(),
 				Source:          &request.PreCondition,
@@ -253,12 +260,12 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 			return errkit.Newf("could not execute pre-condition: %s", err)
 		}
 		if !result.GetSuccess() || types.ToString(result["error"]) != "" {
-			gologger.Warning().Msgf("[%s] Precondition for request %s was not satisfied\n", request.TemplateID, request.PreCondition)
+			request.GetLogger().Warning().Msgf("[%s] Precondition for request %s was not satisfied\n", request.TemplateID, request.PreCondition)
 			request.options.Progress.IncrementFailedRequestsBy(1)
 			return nil
 		}
 		if request.options.Options.Debug || request.options.Options.DebugRequests {
-			gologger.Debug().Msgf("[%s] Precondition for request was satisfied\n", request.TemplateID)
+			request.GetLogger().Debug().Msgf("[%s] Precondition for request was satisfied\n", request.TemplateID)
 		}
 	}
 
@@ -292,16 +299,16 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 		}
 	}
 	if err != nil {
-		gologger.Warning().Msgf("[%s] Could not execute code: %s", request.options.TemplateID, err)
+		request.GetLogger().Warning().Msgf("[%s] Could not execute code: %s", request.options.TemplateID, err)
 	}
-	gologger.Verbose().Msgf("[%s] Executed code on local machine %v", request.options.TemplateID, input.MetaInput.Input)
+	request.GetLogger().Verbose().Msgf("[%s] Executed code on local machine %v", request.options.TemplateID, input.MetaInput.Input)
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("Code Protocol request variables: %s\n", vardump.DumpVariables(allvars))
+		request.GetLogger().Debug().Msgf("Code Protocol request variables: %s\n", vardump.DumpVariables(allvars))
 	}
 
 	if request.options.Options.Debug || request.options.Options.DebugRequests {
-		gologger.Debug().MsgFunc(func() string {
+		request.GetLogger().Debug().MsgFunc(func() string {
 			dashes := strings.Repeat("-", 15)
 			sb := &strings.Builder{}
 			fmt.Fprintf(sb, "[%s] Dumped Executed Source Code for input/stdin: '%v'", request.options.TemplateID, input.MetaInput.Input)
@@ -367,10 +374,10 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicVa
 	if request.options.Options.Debug || request.options.Options.DebugResponse || request.options.Options.StoreResponse {
 		msg := fmt.Sprintf("[%s] Dumped Code Execution for %s\n\n", request.options.TemplateID, input.MetaInput.Input)
 		if request.options.Options.Debug || request.options.Options.DebugResponse {
-			gologger.Debug().Msg(msg)
-			gologger.Print().Msgf("%s\n\n", responsehighlighter.Highlight(event.OperatorsResult, dataOutputString, request.options.Options.NoColor, false))
+			request.GetLogger().Debug().Msg(msg)
+			logging.Print(request.GetLogger()).Msgf("%s\n\n", responsehighlighter.Highlight(event.OperatorsResult, dataOutputString, request.options.Options.NoColor, false))
 			if gOutput.Stderr.Len() > 0 {
-				gologger.Debug().Msgf("[%s] Code Stderr:\n%s", request.options.TemplateID, gOutput.Stderr.String())
+				request.GetLogger().Debug().Msgf("[%s] Code Stderr:\n%s", request.options.TemplateID, gOutput.Stderr.String())
 			}
 		}
 		if request.options.Options.StoreResponse {
@@ -480,7 +487,7 @@ func beautifyJavascript(code string) string {
 	return beautified
 }
 
-func prettyPrint(templateId string, buff string) {
+func (request *Request) prettyPrint(buff string) {
 	lines := strings.Split(buff, "\n")
 	final := []string{}
 	for _, v := range lines {
@@ -488,7 +495,7 @@ func prettyPrint(templateId string, buff string) {
 			final = append(final, "\t"+v)
 		}
 	}
-	gologger.Debug().Msgf(" [%v] Pre-condition Code:\n\n%v\n\n", templateId, strings.Join(final, "\n"))
+	request.GetLogger().Debug().Msgf(" [%v] Pre-condition Code:\n\n%v\n\n", request.TemplateID, strings.Join(final, "\n"))
 }
 
 // UpdateOptions replaces this request's options with a new copy

@@ -38,7 +38,7 @@ func TestHasNetworkHelperIgnoresSubstringsAndQuotedCalls(t *testing.T) {
 		{source: `len("publicip")`, want: false},
 	} {
 		t.Run(item.source, func(t *testing.T) {
-			require.Equal(t, item.want, hasNetworkHelper(item.source))
+			require.Equal(t, item.want, networkHelperCall.MatchString(stripQuotedStrings(item.source)))
 			expression, err := govaluate.NewEvaluableExpressionWithFunctions(item.source, HelperFunctions)
 			require.NoError(t, err)
 			if item.want {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
 	"golang.org/x/time/rate"
 )
@@ -48,6 +49,7 @@ type rateLimitEntry struct {
 
 // PerHostRateLimiter serializes admission for one normalized host.
 type PerHostRateLimiter struct {
+	logger    *gologger.Logger
 	limiter   *rate.Limiter
 	ctx       context.Context
 	cancel    context.CancelFunc
@@ -117,7 +119,7 @@ func (l *PerHostRateLimiter) Wait(ctx context.Context) error {
 // Take waits for one request using a non-cancelable context.
 func (l *PerHostRateLimiter) Take() {
 	if err := l.Wait(context.Background()); err != nil {
-		gologger.Warning().Msgf("Could not take per-host rate limit: %s", err)
+		logging.OrDefault(l.logger).Warning().Msgf("Could not take per-host rate limit: %s", err)
 	}
 }
 
@@ -216,7 +218,7 @@ func NewPerHostRateLimitPool(size int, maxIdleTime, maxLifetime time.Duration, o
 		cache: expirable.NewLRU[string, *rateLimitEntry](
 			size,
 			func(key string, value *rateLimitEntry) {
-				gologger.Debug().Msgf("[perhost-ratelimit-pool] Evicted rate limiter for %s (age: %v, accesses: %d)",
+				options.GetLogger().Debug().Msgf("[perhost-ratelimit-pool] Evicted rate limiter for %s (age: %v, accesses: %d)",
 					key, time.Since(value.createdAt), value.accessCount.Load())
 			},
 			ttl,
@@ -317,7 +319,7 @@ func (p *PerHostRateLimitPool) GetOrCreate(
 func newPerHostRateLimiter(options *types.Options) (*PerHostRateLimiter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	if options == nil {
-		return &PerHostRateLimiter{ctx: ctx, cancel: cancel, unlimited: true, limit: math.MaxUint32, duration: time.Millisecond}, nil
+		return &PerHostRateLimiter{logger: options.GetLogger(), ctx: ctx, cancel: cancel, unlimited: true, limit: math.MaxUint32, duration: time.Millisecond}, nil
 	}
 	if options.RateLimit < 0 {
 		cancel()
@@ -328,10 +330,11 @@ func newPerHostRateLimiter(options *types.Options) (*PerHostRateLimiter, error) 
 		return nil, fmt.Errorf("rate limit duration must not be negative: %s", options.RateLimitDuration)
 	}
 	if options.RateLimit == 0 || options.RateLimitDuration == 0 {
-		return &PerHostRateLimiter{ctx: ctx, cancel: cancel, unlimited: true, limit: math.MaxUint32, duration: time.Millisecond}, nil
+		return &PerHostRateLimiter{logger: options.GetLogger(), ctx: ctx, cancel: cancel, unlimited: true, limit: math.MaxUint32, duration: time.Millisecond}, nil
 	}
 	requestsPerSecond := rate.Limit(float64(options.RateLimit) / options.RateLimitDuration.Seconds())
 	return &PerHostRateLimiter{
+		logger:    options.GetLogger(),
 		limiter:   rate.NewLimiter(requestsPerSecond, options.RateLimit),
 		ctx:       ctx,
 		cancel:    cancel,
@@ -534,7 +537,7 @@ func (p *PerHostRateLimitPool) PrintStats() {
 	if total := stats.Hits + stats.Misses; total > 0 {
 		hitRate = float64(stats.Hits) * 100 / float64(total)
 	}
-	gologger.Info().Msgf("[perhost-ratelimit-pool] Rate limit stats: Hits=%d Misses=%d HitRate=%.1f%% Hosts=%d",
+	p.options.GetLogger().Info().Msgf("[perhost-ratelimit-pool] Rate limit stats: Hits=%d Misses=%d HitRate=%.1f%% Hosts=%d",
 		stats.Hits, stats.Misses, hitRate, stats.Size)
 }
 
@@ -574,9 +577,9 @@ func (p *PerHostRateLimitPool) PrintPerHostPPSStats() {
 		return
 	}
 
-	gologger.Info().Msgf("[perhost-ratelimit-pool] Per-host requests per second (pps):")
+	p.options.GetLogger().Info().Msgf("[perhost-ratelimit-pool] Per-host requests per second (pps):")
 	for _, stat := range hostStats {
-		gologger.Info().Msgf("  %s: %.2f pps (total: %d requests, age: %v)",
+		p.options.GetLogger().Info().Msgf("  %s: %.2f pps (total: %d requests, age: %v)",
 			stat.host, stat.pps, stat.requests, stat.age.Round(time.Second))
 	}
 }

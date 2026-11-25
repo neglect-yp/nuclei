@@ -9,7 +9,6 @@ import (
 
 	"github.com/openrdap/rdap"
 	"github.com/openrdap/rdap/bootstrap"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
 	"github.com/projectdiscovery/nuclei/v3/pkg/types"
 )
@@ -59,7 +58,7 @@ func newClient(options *types.Options) *Client {
 	}
 	if options.Verbose || options.Debug || options.DebugRequests || options.DebugResponse {
 		client.Verbose = func(text string) {
-			gologger.Debug().Msgf("rdap: %s", text)
+			options.GetLogger().Debug().Msgf("rdap: %s", text)
 		}
 	}
 	return &Client{client: client}

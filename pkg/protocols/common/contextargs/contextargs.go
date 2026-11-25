@@ -7,7 +7,7 @@ import (
 	"sync/atomic"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/portutil"
 	mapsutil "github.com/projectdiscovery/utils/maps"
 	sliceutil "github.com/projectdiscovery/utils/slice"
@@ -51,7 +51,7 @@ func NewWithMetaInput(ctx context.Context, input *MetaInput) *Context {
 func NewWithInput(ctx context.Context, input string) *Context {
 	jar, err := cookiejar.New(nil)
 	if err != nil {
-		gologger.Error().Msgf("contextargs: could not create cookie jar: %s\n", err)
+		logging.FromContext(ctx).Error().Msgf("contextargs: could not create cookie jar: %s\n", err)
 	}
 	metaInput := NewMetaInput()
 	metaInput.Input = input

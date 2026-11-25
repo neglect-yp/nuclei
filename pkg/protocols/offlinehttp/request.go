@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
@@ -79,7 +79,7 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, metadata,
 
 			file, err := os.Open(data)
 			if err != nil {
-				gologger.Error().Msgf("Could not open file path %s: %s\n", data, err)
+				request.GetLogger().Error().Msgf("Could not open file path %s: %s\n", data, err)
 				return
 			}
 			defer func() {
@@ -88,23 +88,23 @@ func (request *Request) ExecuteWithResults(input *contextargs.Context, metadata,
 
 			stat, err := file.Stat()
 			if err != nil {
-				gologger.Error().Msgf("Could not stat file path %s: %s\n", data, err)
+				request.GetLogger().Error().Msgf("Could not stat file path %s: %s\n", data, err)
 				return
 			}
 			if stat.Size() >= int64(maxSize) {
-				gologger.Verbose().Msgf("Could not process path %s: exceeded max size\n", data)
+				request.GetLogger().Verbose().Msgf("Could not process path %s: exceeded max size\n", data)
 				return
 			}
 
 			buffer, err := io.ReadAll(file)
 			if err != nil {
-				gologger.Error().Msgf("Could not read file path %s: %s\n", data, err)
+				request.GetLogger().Error().Msgf("Could not read file path %s: %s\n", data, err)
 				return
 			}
 			dataStr := conversion.String(buffer)
 
 			if err := request.executeRawInput(dataStr, data, input, callback); err != nil {
-				gologger.Error().Msgf("Could not execute raw input %s: %s\n", data, err)
+				request.GetLogger().Error().Msgf("Could not execute raw input %s: %s\n", data, err)
 				return
 			}
 		}(data)
@@ -130,10 +130,10 @@ func (request *Request) executeRawInput(data, inputString string, input *context
 	}
 
 	if request.options.Options.Debug || request.options.Options.DebugRequests {
-		gologger.Info().Msgf("[%s] Dumped offline-http request for %s", request.options.TemplateID, data)
-		gologger.Print().Msgf("%s", data)
+		request.GetLogger().Info().Msgf("[%s] Dumped offline-http request for %s", request.options.TemplateID, data)
+		logging.Print(request.GetLogger()).Msgf("%s", data)
 	}
-	gologger.Verbose().Msgf("[%s] Sent OFFLINE-HTTP request to %s", request.options.TemplateID, data)
+	request.GetLogger().Verbose().Msgf("[%s] Sent OFFLINE-HTTP request to %s", request.options.TemplateID, data)
 
 	dumpedResponse, err := httputil.DumpResponse(resp, true)
 	if err != nil {

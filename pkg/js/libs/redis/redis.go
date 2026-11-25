@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/protocolstate"
 	"github.com/redis/go-redis/v9"
 
@@ -413,6 +413,6 @@ func init() {
 // straight to stderr, where a failed dial against the scanned host reads as an error.
 type warningLogger struct{}
 
-func (warningLogger) Printf(_ context.Context, format string, v ...interface{}) {
-	gologger.Warning().Msgf(format, v...)
+func (warningLogger) Printf(ctx context.Context, format string, v ...interface{}) {
+	logging.FromContext(ctx).Warning().Msgf(format, v...)
 }

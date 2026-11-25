@@ -15,7 +15,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
 )
 
@@ -60,7 +59,7 @@ type templateOwnershipManifest struct {
 
 // reconcileTemplateOwnership removes only unchanged files owned by the
 // previous release, then records the files owned by the current release.
-func reconcileTemplateOwnership(dir string, writtenOutputs map[string]string) error {
+func (t *TemplateManager) reconcileTemplateOwnership(dir string, writtenOutputs map[string]string) error {
 	current, err := buildTemplateOwnership(dir, writtenOutputs)
 	if err != nil {
 		return err
@@ -76,7 +75,7 @@ func reconcileTemplateOwnership(dir string, writtenOutputs map[string]string) er
 		}
 		reconcileErr = cleanupErr
 	} else if !errors.Is(loadErr, errTemplateOwnershipMissing) {
-		gologger.Warning().Msgf("Skipping retired template cleanup: %s", loadErr)
+		t.logger().Warning().Msgf("Skipping retired template cleanup: %s", loadErr)
 	}
 
 	if writeErr := writeTemplateOwnership(dir, current); writeErr != nil {

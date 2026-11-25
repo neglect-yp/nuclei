@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
-	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/types"
 	"github.com/projectdiscovery/nuclei/v3/pkg/utils/json"
@@ -83,7 +83,7 @@ func (h *HARFormat) Parse(input io.Reader, resultsCb formats.ParseReqRespCallbac
 		}
 		rawRequest, err := types.ParseRawRequestWithURL(rawRequestOf(e), e.Request.URL)
 		if err != nil {
-			gologger.Warning().Msgf("har: Could not parse request %s: %s\n", e.Request.URL, err)
+			logging.OrDefault(h.opts.Logger).Warning().Msgf("har: Could not parse request %s: %s\n", e.Request.URL, err)
 			continue
 		}
 		// Status 0 is a request that was blocked or never answered.

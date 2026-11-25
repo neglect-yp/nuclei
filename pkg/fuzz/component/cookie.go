@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz/dataformat"
 	httputil "github.com/projectdiscovery/nuclei/v3/pkg/protocols/utils/http"
 	"github.com/projectdiscovery/retryablehttp-go"
@@ -37,7 +38,7 @@ func (c *Cookie) Parse(req *retryablehttp.Request) (bool, error) {
 		return false, nil
 	}
 	c.req = req
-	c.value = NewValue("")
+	c.value = newValue("", logging.FromContext(req.Context()))
 
 	parsedCookies := mapsutil.NewOrderedMap[string, any]()
 	for _, cookie := range req.Cookies() {

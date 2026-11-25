@@ -8,6 +8,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats/burp"
 	"github.com/projectdiscovery/nuclei/v3/pkg/input/formats/har"
@@ -36,6 +37,7 @@ type HttpMultiFormatOptions struct {
 // HttpInputProvider implements an input provider for nuclei that loads
 // inputs from multiple formats like burp, openapi, postman,proxify, etc.
 type HttpInputProvider struct {
+	logger    *gologger.Logger
 	format    formats.Format
 	inputData []byte
 	inputFile string
@@ -49,7 +51,7 @@ type HttpInputProvider struct {
 // otherwise it will use the input string
 func NewHttpInputProvider(opts *HttpMultiFormatOptions) (*HttpInputProvider, error) {
 	var format formats.Format
-	for _, provider := range providersList {
+	for _, provider := range supportedProviders() {
 		if provider.Name() == opts.InputMode {
 			format = provider
 		}
@@ -94,7 +96,7 @@ func NewHttpInputProvider(opts *HttpMultiFormatOptions) (*HttpInputProvider, err
 	if parseErr != nil {
 		return nil, errors.Wrap(parseErr, "could not parse input file")
 	}
-	return &HttpInputProvider{format: format, inputData: data, inputFile: opts.InputFile, count: count}, nil
+	return &HttpInputProvider{logger: logging.OrDefault(opts.Options.Logger), format: format, inputData: data, inputFile: opts.InputFile, count: count}, nil
 }
 
 // Count returns the number of items for input provider
@@ -111,7 +113,7 @@ func (i *HttpInputProvider) Iterate(callback func(value *contextargs.MetaInput) 
 		return callback(metaInput)
 	}, i.inputFile)
 	if err != nil {
-		gologger.Warning().Msgf("Could not parse input file while iterating: %s\n", err)
+		i.logger.Warning().Msgf("Could not parse input file while iterating: %s\n", err)
 	}
 }
 
@@ -141,21 +143,23 @@ func (i *HttpInputProvider) InputType() string {
 func (i *HttpInputProvider) Close() {}
 
 // Supported Providers
-var providersList = []formats.Format{
-	burp.New(),
-	har.New(),
-	json.New(),
-	yaml.New(),
-	openapi.New(),
-	swagger.New(),
-	raw.New(),
+func supportedProviders() []formats.Format {
+	return []formats.Format{
+		burp.New(),
+		har.New(),
+		json.New(),
+		yaml.New(),
+		openapi.New(),
+		swagger.New(),
+		raw.New(),
+	}
 }
 
 // SupportedFormats returns the list of supported formats in comma-separated
 // manner
 func SupportedFormats() string {
 	var formats []string
-	for _, provider := range providersList {
+	for _, provider := range supportedProviders() {
 		formats = append(formats, provider.Name())
 	}
 	return strings.Join(formats, ", ")

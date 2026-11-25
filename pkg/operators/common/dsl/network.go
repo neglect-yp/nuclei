@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"maps"
 	"net"
 	"net/http"
 	"regexp"
@@ -26,15 +25,22 @@ import (
 // EvalWithOptions evaluates an expression with the current scan's network policy.
 // Cached expressions remain context-free; scan authority is never stored in them.
 func EvalWithOptions(expression *govaluate.EvaluableExpression, values map[string]interface{}, options *types.Options) (interface{}, error) {
-	if options == nil || !hasNetworkHelper(expression.String()) {
+	if options == nil {
+		return expression.Evaluate(values)
+	}
+	source := stripQuotedStrings(expression.String())
+	network := networkHelperCall.MatchString(source)
+	if !network && !debugHelperCall.MatchString(source) {
 		return expression.Evaluate(values)
 	}
 
-	functions := maps.Clone(HelperFunctions)
-	functions["resolve"] = func(args ...interface{}) (interface{}, error) { return resolve(options, args...) }
-	functions["public_ip"] = func(args ...interface{}) (interface{}, error) { return publicIP(options, args...) }
-	functions["publicip"] = functions["public_ip"]
-	functions["jarm"] = func(args ...interface{}) (interface{}, error) { return jarm(options, args...) }
+	functions := HelpersWithLogger(options.GetLogger())
+	if network {
+		functions["resolve"] = func(args ...interface{}) (interface{}, error) { return resolve(options, args...) }
+		functions["public_ip"] = func(args ...interface{}) (interface{}, error) { return publicIP(options, args...) }
+		functions["publicip"] = functions["public_ip"]
+		functions["jarm"] = func(args ...interface{}) (interface{}, error) { return jarm(options, args...) }
+	}
 
 	bound, err := govaluate.NewEvaluableExpressionWithFunctions(expression.String(), functions)
 	if err != nil {
@@ -49,9 +55,7 @@ func EvalWithOptions(expression *govaluate.EvaluableExpression, values map[strin
 // network helper, so an unrecognized spelling cannot bypass the gate.
 var networkHelperCall = regexp.MustCompile(`\b(?:public_ip|publicip|resolve|jarm)\s*\(`)
 
-func hasNetworkHelper(expression string) bool {
-	return networkHelperCall.MatchString(stripQuotedStrings(expression))
-}
+var debugHelperCall = regexp.MustCompile(`\bprint_?debug\s*\(`)
 
 func stripQuotedStrings(expression string) string {
 	var builder strings.Builder

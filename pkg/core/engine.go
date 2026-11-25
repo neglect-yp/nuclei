@@ -88,7 +88,9 @@ func (e *Engine) GetWorkPoolConfig() WorkPoolConfig {
 
 // GetWorkPool returns a workpool from options
 func (e *Engine) GetWorkPool() *WorkPool {
-	return NewWorkPool(e.GetWorkPoolConfig())
+	pool := NewWorkPool(e.GetWorkPoolConfig())
+	pool.logger = e.options.GetLogger()
+	return pool
 }
 
 // SetExecuterOptions sets the executer options for the engine. This is required

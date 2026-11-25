@@ -13,12 +13,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/nuclei/v3/internal/logging"
+
 	"github.com/gobwas/ws"
 	"github.com/gobwas/ws/wsutil"
 	"github.com/pkg/errors"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/extractors"
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators/matchers"
@@ -145,6 +147,10 @@ func (request *Request) GetID() string {
 	return request.ID
 }
 
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
+}
+
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
 func (request *Request) ExecuteWithResults(input *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
 	hostname, err := getAddress(input.MetaInput.Input)
@@ -258,7 +264,7 @@ func (request *Request) executeRequestWithPayloads(target *contextargs.Context, 
 	}
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("WebSocket Protocol request variables: %s\n", vardump.DumpVariables(payloadValues))
+		request.GetLogger().Debug().Msgf("WebSocket Protocol request variables: %s\n", vardump.DumpVariables(payloadValues))
 	}
 
 	addressResult, dataErr := render.Render(render.Input{Options: request.options.GetOptions(), Text: request.Address, Values: payloadValues})
@@ -328,12 +334,12 @@ func (request *Request) executeRequestWithPayloads(target *contextargs.Context, 
 	requestOptions.Progress.IncrementRequests()
 
 	if requestOptions.Options.Debug || requestOptions.Options.DebugRequests {
-		gologger.Debug().Str("address", input).Msgf("[%s] Dumped Websocket request for %s", requestOptions.TemplateID, input)
-		gologger.Print().Msgf("%s", requestOutput)
+		request.GetLogger().Debug().Str("address", input).Msgf("[%s] Dumped Websocket request for %s", requestOptions.TemplateID, input)
+		logging.Print(request.GetLogger()).Msgf("%s", requestOutput)
 	}
 
 	requestOptions.Output.Request(requestOptions.TemplateID, input, request.Type().String(), err)
-	gologger.Verbose().Msgf("Sent Websocket request to %s", input)
+	request.GetLogger().Verbose().Msgf("Sent Websocket request to %s", input)
 
 	data := make(map[string]interface{})
 
@@ -366,8 +372,8 @@ func (request *Request) executeRequestWithPayloads(target *contextargs.Context, 
 	})
 	if requestOptions.Options.Debug || requestOptions.Options.DebugResponse {
 		responseOutput := responseBuilder.String()
-		gologger.Debug().Msgf("[%s] Dumped Websocket response for %s", requestOptions.TemplateID, input)
-		gologger.Print().Msgf("%s", responsehighlighter.Highlight(event.OperatorsResult, responseOutput, requestOptions.Options.NoColor, false))
+		request.GetLogger().Debug().Msgf("[%s] Dumped Websocket response for %s", requestOptions.TemplateID, input)
+		logging.Print(request.GetLogger()).Msgf("%s", responsehighlighter.Highlight(event.OperatorsResult, responseOutput, requestOptions.Options.NoColor, false))
 	}
 
 	callback(event)

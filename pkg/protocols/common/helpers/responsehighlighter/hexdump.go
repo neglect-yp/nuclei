@@ -6,8 +6,6 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
-
-	"github.com/projectdiscovery/gologger"
 )
 
 // [0-9a-fA-F]{8} {2} 	- hexdump indexes (8 character hex value followed by two spaces)
@@ -43,10 +41,7 @@ func (hexDump HighlightableHexDump) String() string {
 func toHighLightedHexDump(hexDump, snippetToHighlight string) (HighlightableHexDump, error) {
 	hexDumpRowValues := hexDumpParsePattern.FindAllStringSubmatch(hexDump, -1)
 	if hexDumpRowValues == nil || len(hexDumpRowValues) != strings.Count(hexDump, "\n") {
-		message := "could not parse hexdump"
-		gologger.Warning().Msg(message)
-
-		return HighlightableHexDump{}, errors.New(message)
+		return HighlightableHexDump{}, errors.New("could not parse hexdump")
 	}
 
 	result := NewHighlightableHexDump(len(hexDumpRowValues))

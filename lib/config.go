@@ -108,8 +108,8 @@ func WithInteractshOptions(opts InteractshOpts) NucleiSDKOptions {
 		if e.mode == threadSafe && e.interactshOpts != nil {
 			return errkit.Wrap(ErrOptionsNotSupported, "WithInteractshOptions")
 		}
-		optsPtr := &opts
-		e.interactshOpts = (*interactsh.Options)(optsPtr)
+		options := interactsh.Options(opts)
+		e.interactshOpts = &options
 		return nil
 	}
 }
@@ -296,8 +296,7 @@ func WithNetworkConfig(opts NetworkConfig) NucleiSDKOptions {
 		if e.opts.ShouldUseHostError() {
 			maxHostError := opts.MaxHostError
 			if e.opts.TemplateThreads > maxHostError {
-				e.Logger.Warning().Msg("The concurrency value is higher than max-host-error")
-				e.Logger.Info().Msgf("Adjusting max-host-error to the concurrency value: %d", e.opts.TemplateThreads)
+				e.adjustedMaxHostErrors = append(e.adjustedMaxHostErrors, e.opts.TemplateThreads)
 				maxHostError = e.opts.TemplateThreads
 				e.opts.MaxHostError = maxHostError
 			}
@@ -558,9 +557,14 @@ func WithResumeFile(file string) NucleiSDKOptions {
 	}
 }
 
-// WithLogger allows setting a shared gologger instance
+// WithLogger selects the engine logger. It takes precedence over WithOptions
+// and can be overridden for one thread-safe execution.
 func WithLogger(logger *gologger.Logger) NucleiSDKOptions {
 	return func(e *NucleiEngine) error {
+		if logger == nil {
+			return errors.New("WithLogger requires a non-nil logger")
+		}
+		e.loggerOverridden = true
 		e.Logger = logger
 		if e.opts != nil {
 			e.opts.Logger = logger
@@ -575,7 +579,14 @@ func WithLogger(logger *gologger.Logger) NucleiSDKOptions {
 // WithOptions sets all options at once
 func WithOptions(opts *pkgtypes.Options) NucleiSDKOptions {
 	return func(e *NucleiEngine) error {
+		if opts == nil {
+			return errors.New("WithOptions requires non-nil options")
+		}
+		if e.loggerOverridden || opts.Logger == nil {
+			opts.Logger = e.Logger
+		}
 		e.opts = opts
+		e.Logger = opts.Logger
 		return nil
 	}
 }

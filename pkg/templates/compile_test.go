@@ -19,8 +19,8 @@ import (
 
 	"github.com/julienschmidt/httprouter"
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
-	"github.com/projectdiscovery/gologger/writer"
 	"github.com/projectdiscovery/nuclei/v3/internal/tests/testutils"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog"
 	"github.com/projectdiscovery/nuclei/v3/pkg/catalog/config"
@@ -552,7 +552,11 @@ workflows:
 			workflowLoader, err := workflow.NewLoader(executerOpts)
 			require.NoError(t, err)
 			executerOpts.WorkflowLoader = workflowLoader
-			warnings := recordWarnings(t)
+			warnings := &warningRecorder{}
+			executerOpts.Logger = &gologger.Logger{}
+			executerOpts.Logger.SetWriter(warnings)
+			executerOpts.Logger.SetFormatter(formatter.NewCLI(true))
+			executerOpts.Logger.SetMaxLevel(levels.LevelWarning)
 			skippedSteps := stats.GetValue(templates.SkippedWorkflowStepStats)
 
 			got, err := templates.Parse(workflowPath, nil, executerOpts)
@@ -583,20 +587,6 @@ workflows:
 type warningRecorder struct {
 	mu    sync.Mutex
 	lines []string
-}
-
-// recordWarnings records the warnings gologger writes until t ends.
-func recordWarnings(t *testing.T) *warningRecorder {
-	t.Helper()
-	recorder := &warningRecorder{}
-	gologger.DefaultLogger.SetWriter(recorder)
-	gologger.DefaultLogger.SetMaxLevel(levels.LevelWarning)
-	t.Cleanup(func() {
-		// gologger's own defaults: it has no getter to save the previous ones
-		gologger.DefaultLogger.SetWriter(writer.NewCLI())
-		gologger.DefaultLogger.SetMaxLevel(levels.LevelInfo)
-	})
-	return recorder
 }
 
 func (w *warningRecorder) Write(data []byte, level levels.Level) {

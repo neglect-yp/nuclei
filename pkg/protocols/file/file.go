@@ -24,6 +24,7 @@ import (
 	"github.com/docker/go-units"
 	"github.com/h2non/filetype"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 
 	"github.com/projectdiscovery/nuclei/v3/pkg/operators"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
@@ -131,6 +132,10 @@ var defaultArchiveDenyList = []string{".7z", ".apk", ".gz", ".rar", ".tar.gz", "
 // GetID returns the unique ID of the request if any.
 func (request *Request) GetID() string {
 	return request.ID
+}
+
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
 }
 
 // Compile compiles the protocol request for further execution.

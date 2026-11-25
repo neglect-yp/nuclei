@@ -11,11 +11,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/projectdiscovery/gologger"
+
 	"github.com/alecthomas/chroma/v2/quick"
 	"github.com/ditashi/jsbeautifier-go/jsbeautifier"
 	"github.com/pkg/errors"
 	"github.com/projectdiscovery/goja"
-	"github.com/projectdiscovery/gologger"
 	"github.com/projectdiscovery/nuclei/v3/pkg/js/compiler"
 	"github.com/projectdiscovery/nuclei/v3/pkg/js/gojs"
 	"github.com/projectdiscovery/nuclei/v3/pkg/model"
@@ -159,17 +160,18 @@ func (request *Request) Compile(options *protocols.ExecutorOptions) error {
 	if initCompiled != nil && request.options.Verified {
 		// execute init code if any
 		if request.options.Options.Debug || request.options.Options.DebugRequests {
-			gologger.Debug().Msgf("[%s] Executing Template Init\n", request.TemplateID)
+			request.GetLogger().Debug().Msgf("[%s] Executing Template Init\n", request.TemplateID)
 			var highlightFormatter = "terminal256"
 			if request.options.Options.NoColor {
 				highlightFormatter = "text"
 			}
 			var buff bytes.Buffer
 			_ = quick.Highlight(&buff, beautifyJavascript(request.Init), "javascript", highlightFormatter, "monokai")
-			prettyPrint(request.TemplateID, buff.String())
+			request.prettyPrint(buff.String())
 		}
 
 		opts := &compiler.ExecuteOptions{
+			Logger:          request.GetLogger(),
 			ExecutionId:     request.options.Options.ExecutionId,
 			TimeoutVariants: request.options.Options.GetTimeouts(),
 			ProxyURL:        request.options.Options.AliveHttpProxy,
@@ -241,12 +243,12 @@ func (request *Request) Compile(options *protocols.ExecutorOptions) error {
 			return errkit.Newf("could not execute pre-condition: %s", err)
 		}
 		if types.ToString(result["error"]) != "" {
-			gologger.Warning().Msgf("[%s] Init failed with error %v\n", request.TemplateID, result["error"])
+			request.GetLogger().Warning().Msgf("[%s] Init failed with error %v\n", request.TemplateID, result["error"])
 			return nil
 		} else {
 			if request.options.Options.Debug || request.options.Options.DebugResponse {
-				gologger.Debug().Msgf("[%s] Init executed successfully\n", request.TemplateID)
-				gologger.Debug().Msgf("[%s] Init result: %v\n", request.TemplateID, result["response"])
+				request.GetLogger().Debug().Msgf("[%s] Init executed successfully\n", request.TemplateID)
+				request.GetLogger().Debug().Msgf("[%s] Init result: %v\n", request.TemplateID, result["response"])
 			}
 		}
 	}
@@ -296,6 +298,10 @@ func (request *Request) GetID() string {
 	return request.ID
 }
 
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
+}
+
 // ExecuteWithResults executes the protocol requests and returns results instead of writing them.
 func (request *Request) ExecuteWithResults(target *contextargs.Context, dynamicValues, previous output.InternalEvent, callback protocols.OutputEventCallback) error {
 	if request.options == nil || !request.options.Verified {
@@ -327,7 +333,7 @@ func (request *Request) executeWithResults(port string, target *contextargs.Cont
 	// and it is ignored if input port is not standard http(s) ports like 80,8080,8081 etc
 	// idea is to reduce redundant dials to http ports
 	if err := input.UseNetworkPort(port, request.getExcludePorts()); err != nil {
-		gologger.Debug().Msgf("Could not network port from constants: %s\n", err)
+		request.GetLogger().Debug().Msgf("Could not network port from constants: %s\n", err)
 	}
 
 	hostPort, err := getAddress(input.MetaInput.Input)
@@ -379,14 +385,14 @@ func (request *Request) executeWithResults(port string, target *contextargs.Cont
 	templateCtx.MergeTemplateVariables(templateVariables)
 
 	if vardump.EnableVarDump {
-		gologger.Debug().Msgf("JavaScript Protocol request variables: %s\n", vardump.DumpVariables(payloadValues))
+		request.GetLogger().Debug().Msgf("JavaScript Protocol request variables: %s\n", vardump.DumpVariables(payloadValues))
 	}
 
 	if request.PreCondition != "" {
 		payloads := generators.MergeMaps(payloadValues, previous)
 
 		if request.options.Options.Debug || request.options.Options.DebugRequests {
-			gologger.Debug().Msgf("[%s] Executing Precondition for request\n", request.TemplateID)
+			request.GetLogger().Debug().Msgf("[%s] Executing Precondition for request\n", request.TemplateID)
 
 			var highlightFormatter = "terminal256"
 			if requestOptions.Options.NoColor {
@@ -396,7 +402,7 @@ func (request *Request) executeWithResults(port string, target *contextargs.Cont
 			var buff bytes.Buffer
 			_ = quick.Highlight(&buff, beautifyJavascript(request.PreCondition), "javascript", highlightFormatter, "monokai")
 
-			prettyPrint(request.TemplateID, buff.String())
+			request.prettyPrint(buff.String())
 		}
 
 		argsCopy, argURLs, err := request.getArgsCopy(input, payloads, requestOptions, true)
@@ -409,6 +415,7 @@ func (request *Request) executeWithResults(port string, target *contextargs.Cont
 
 		result, err := request.options.JsCompiler.ExecuteWithOptions(target.Context(), request.preConditionCompiled, argsCopy,
 			&compiler.ExecuteOptions{
+				Logger:          request.GetLogger(),
 				ExecutionId:     requestOptions.Options.ExecutionId,
 				TimeoutVariants: requestOptions.Options.GetTimeouts(),
 				ProxyURL:        requestOptions.Options.AliveHttpProxy,
@@ -422,7 +429,7 @@ func (request *Request) executeWithResults(port string, target *contextargs.Cont
 		// if precondition was successful
 		if err == nil && result.GetSuccess() {
 			if request.options.Options.Debug || request.options.Options.DebugRequests {
-				gologger.Debug().Msgf("[%s] Precondition for request was satisfied\n", request.TemplateID)
+				request.GetLogger().Debug().Msgf("[%s] Precondition for request was satisfied\n", request.TemplateID)
 			}
 		} else {
 			// Requests() already counted the requests this run now skips
@@ -577,7 +584,7 @@ func (request *Request) executeRequestParallel(ctxParent context.Context, hostPo
 			// resize check point - nop if there are no changes
 			if shouldFollowGlobal && sg.Size != request.options.Options.PayloadConcurrency {
 				if err := sg.Resize(ctxParent, request.options.Options.PayloadConcurrency); err != nil {
-					gologger.Warning().Msgf("Could not resize workpool: %s\n", err)
+					request.GetLogger().Warning().Msgf("Could not resize workpool: %s\n", err)
 				}
 			}
 
@@ -677,6 +684,7 @@ func (request *Request) executeRequestWithPayloads(
 	}
 	results, err := request.options.JsCompiler.ExecuteWithOptions(ctx, request.scriptCompiled, argsCopy,
 		&compiler.ExecuteOptions{
+			Logger:          request.GetLogger(),
 			ExecutionId:     requestOptions.Options.ExecutionId,
 			TimeoutVariants: requestOptions.Options.GetTimeouts(),
 			ProxyURL:        requestOptions.Options.AliveHttpProxy,
@@ -690,20 +698,20 @@ func (request *Request) executeRequestWithPayloads(
 	}
 	request.options.Progress.IncrementRequests()
 	requestOptions.Output.Request(requestOptions.TemplateID, hostPort, request.Type().String(), err)
-	gologger.Verbose().Msgf("[%s] Sent Javascript request to %s", request.options.TemplateID, hostPort)
+	request.GetLogger().Verbose().Msgf("[%s] Sent Javascript request to %s", request.options.TemplateID, hostPort)
 
 	if requestOptions.Options.Debug || requestOptions.Options.DebugRequests || requestOptions.Options.StoreResponse {
 		msg := fmt.Sprintf("[%s] Dumped Javascript request for %s:\nVariables:\n %v", requestOptions.TemplateID, input.MetaInput.Input, vardump.DumpVariables(argsCopy.Args))
 
 		if requestOptions.Options.Debug || requestOptions.Options.DebugRequests {
-			gologger.Debug().Str("address", input.MetaInput.Input).Msg(msg)
+			request.GetLogger().Debug().Str("address", input.MetaInput.Input).Msg(msg)
 			var highlightFormatter = "terminal256"
 			if requestOptions.Options.NoColor {
 				highlightFormatter = "text"
 			}
 			var buff bytes.Buffer
 			_ = quick.Highlight(&buff, beautifyJavascript(request.Code), "javascript", highlightFormatter, "monokai")
-			prettyPrint(request.TemplateID, buff.String())
+			request.prettyPrint(buff.String())
 		}
 		if requestOptions.Options.StoreResponse {
 			request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), msg)
@@ -724,7 +732,7 @@ func (request *Request) executeRequestWithPayloads(
 	if requestOptions.Options.Debug || requestOptions.Options.DebugRequests || requestOptions.Options.StoreResponse {
 		msg := fmt.Sprintf("[%s] Dumped Javascript response for %s:\n%v", requestOptions.TemplateID, input.MetaInput.Input, vardump.DumpVariables(results))
 		if requestOptions.Options.Debug || requestOptions.Options.DebugRequests {
-			gologger.Debug().Str("address", input.MetaInput.Input).Msg(msg)
+			request.GetLogger().Debug().Str("address", input.MetaInput.Input).Msg(msg)
 		}
 		if requestOptions.Options.StoreResponse {
 			request.options.Output.WriteStoreDebugData(input.MetaInput.Input, request.options.TemplateID, request.Type().String(), msg)
@@ -986,7 +994,7 @@ func beautifyJavascript(code string) string {
 	return beautified
 }
 
-func prettyPrint(templateId string, buff string) {
+func (request *Request) prettyPrint(buff string) {
 	if buff == "" {
 		return
 	}
@@ -997,7 +1005,7 @@ func prettyPrint(templateId string, buff string) {
 			final = append(final, "\t"+v)
 		}
 	}
-	gologger.Debug().Msgf(" [%v] Javascript Code:\n\n%v\n\n", templateId, strings.Join(final, "\n"))
+	request.GetLogger().Debug().Msgf(" [%v] Javascript Code:\n\n%v\n\n", request.TemplateID, strings.Join(final, "\n"))
 }
 
 // UpdateOptions replaces this request's options with a new copy

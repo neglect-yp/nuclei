@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/projectdiscovery/gologger"
+	"github.com/projectdiscovery/gologger/formatter"
 	"github.com/projectdiscovery/gologger/levels"
-	"github.com/projectdiscovery/gologger/writer"
 	"github.com/projectdiscovery/nuclei/v3/pkg/output"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols"
 	"github.com/projectdiscovery/nuclei/v3/pkg/protocols/common/contextargs"
@@ -44,7 +44,7 @@ func (r failingRequest) ExecuteWithResults(
 // the failure event reads it, and does not warn: the engine writes the same
 // message for a target it skips, without a warning (#8196).
 //
-//nolint:exhaustruct,exhaustruct_v5,paralleltest // fixtures keep zero-value defaults; the logger is global
+//nolint:exhaustruct,exhaustruct_v5,paralleltest // fixtures keep zero-value defaults
 func TestUnresponsiveSkipIsLoggedWithoutWarning(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -58,17 +58,14 @@ func TestUnresponsiveSkipIsLoggedWithoutWarning(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			var logged bytes.Buffer
 
-			gologger.DefaultLogger.SetWriter(&utils.CaptureWriter{Buffer: &logged})
-			gologger.DefaultLogger.SetMaxLevel(levels.LevelWarning)
-			t.Cleanup(func() {
-				// gologger's own defaults: it has no getter to save the previous ones
-				gologger.DefaultLogger.SetWriter(writer.NewCLI())
-				gologger.DefaultLogger.SetMaxLevel(levels.LevelInfo)
-			})
+			logger := &gologger.Logger{}
+			logger.SetWriter(&utils.CaptureWriter{Buffer: &logged})
+			logger.SetFormatter(formatter.NewCLI(true))
+			logger.SetMaxLevel(levels.LevelWarning)
 
 			engine := generic.NewGenericEngine(
 				[]protocols.Request{failingRequest{err: test.err}},
-				&protocols.ExecutorOptions{TemplateID: "t", Options: &types.Options{}},
+				&protocols.ExecutorOptions{TemplateID: "t", Logger: logger, Options: &types.Options{}},
 				nil,
 			)
 			ctx := scan.NewScanContext(context.Background(), contextargs.NewWithInput(context.Background(), "http://127.0.0.1"))

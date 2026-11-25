@@ -75,7 +75,7 @@ func (g *Generic) ExecuteWithResults(ctx *scan.ScanContext) error {
 			ctx.LogEvent(event)
 		})
 		if err != nil {
-			utils.LogRequestError(ctx, g.options.TemplateID, err)
+			utils.LogRequestErrorWithLogger(ctx, g.options.TemplateID, err, g.options.GetLogger())
 		}
 		// If a match was found and stop at first match is set, break out of the loop and return
 		if g.results.Load() && (g.options.StopAtFirstMatch || g.options.Options.StopAtFirstMatch) {

@@ -758,7 +758,7 @@ info:
 		writtenTemplates := newWrittenTemplates(t, absTemplate1, absTemplate2)
 
 		// Reconcile prior ownership with the current release.
-		err = reconcileTemplateOwnership(tmpDir, writtenTemplates)
+		err = (&TemplateManager{}).reconcileTemplateOwnership(tmpDir, writtenTemplates)
 		require.NoError(t, err)
 		require.NoFileExists(t, retired1, "retired template 1 should be deleted")
 		require.NoFileExists(t, retired2, "retired template 2 should be deleted")

@@ -11,6 +11,7 @@ import (
 
 	"github.com/invopop/jsonschema"
 	"github.com/pkg/errors"
+	"github.com/projectdiscovery/gologger"
 
 	"github.com/projectdiscovery/fastdialer/fastdialer"
 	"github.com/projectdiscovery/nuclei/v3/pkg/fuzz"
@@ -342,6 +343,10 @@ var RequestPartDefinitions = map[string]string{
 // GetID returns the unique ID of the request if any.
 func (request *Request) GetID() string {
 	return request.ID
+}
+
+func (request *Request) GetLogger() *gologger.Logger {
+	return request.options.GetLogger()
 }
 
 func (request *Request) isRaw() bool {
